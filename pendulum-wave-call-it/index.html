@@ -1,0 +1,1313 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="data:," />
+    <title>Pendulum Wave: Call It</title>
+    <style>
+      :root {
+        --bg: #060714;
+        --panel: #0c0f22;
+        --panel-2: #12162f;
+        --ink: #f2f4ff;
+        --muted: #9aa3c7;
+        --cyan: #29e6ff;
+        --magenta: #ff3df0;
+        --gold: #ffd23d;
+        --green: #3dff9a;
+        --line: rgba(120, 140, 255, 0.22);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        min-height: 100dvh;
+      }
+      .app {
+        max-width: 560px;
+        margin: 0 auto;
+        padding: 12px 14px 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      /* ---------- HUD ---------- */
+      .hud {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .hud-left, .hud-right { display: flex; align-items: center; gap: 8px; }
+      .badge {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        white-space: nowrap;
+      }
+      .badge b { color: var(--cyan); font-weight: 900; }
+      .badge.gold b { color: var(--gold); }
+      .icon-btn {
+        appearance: none;
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+        color: var(--ink);
+        width: 38px; height: 38px;
+        border-radius: 50%;
+        font-size: 17px;
+        cursor: pointer;
+        display: grid; place-items: center;
+        line-height: 1;
+      }
+      .icon-btn:focus-visible, .call-btn:focus-visible, .big-btn:focus-visible { outline: 3px solid var(--cyan); outline-offset: 2px; }
+
+      /* ---------- Stage ---------- */
+      .stage {
+        position: relative;
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        background: #05060f;
+        aspect-ratio: 4 / 5;
+        max-height: 62dvh;
+        width: 100%;
+      }
+      @media (min-width: 700px) {
+        .stage { aspect-ratio: 5 / 5.4; max-height: 66dvh; }
+      }
+      canvas { display: block; width: 100%; height: 100%; }
+
+      .pattern-pill {
+        position: absolute;
+        top: 10px; left: 50%;
+        transform: translateX(-50%);
+        background: rgba(5, 6, 20, 0.82);
+        border: 1.5px solid var(--cyan);
+        color: var(--cyan);
+        border-radius: 999px;
+        padding: 6px 16px;
+        font-size: 14px;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        pointer-events: none;
+        white-space: nowrap;
+        transition: color 0.15s, border-color 0.15s;
+      }
+      .pattern-pill.dna { border-color: var(--magenta); color: var(--magenta); }
+      .pattern-pill.line { border-color: var(--green); color: var(--green); }
+      .pattern-pill.chaos { border-color: #ff5470; color: #ff5470; }
+
+      .swing-counter {
+        position: absolute;
+        bottom: 10px; left: 50%;
+        transform: translateX(-50%);
+        background: rgba(5, 6, 20, 0.78);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 5px 13px;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--muted);
+        pointer-events: none;
+        white-space: nowrap;
+      }
+      .swing-counter b { color: var(--ink); font-size: 13.5px; }
+
+      .flash {
+        position: absolute; inset: 0;
+        background: #fff;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      /* ---------- Overlays ---------- */
+      .overlay {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        text-align: center;
+        padding: 26px 22px;
+        background: rgba(4, 5, 16, 0.78);
+        backdrop-filter: blur(2px);
+        z-index: 5;
+      }
+      .overlay.hidden { display: none; }
+      .game-title {
+        margin: 0;
+        font-size: clamp(34px, 9vw, 52px);
+        font-weight: 900;
+        letter-spacing: 0.02em;
+        line-height: 1.02;
+        text-transform: uppercase;
+      }
+      .game-title .wave {
+        display: block;
+        color: var(--cyan);
+        text-shadow: 0 0 22px rgba(41, 230, 255, 0.55);
+      }
+      .game-title .callit {
+        display: block;
+        color: var(--magenta);
+        text-shadow: 0 0 22px rgba(255, 61, 240, 0.5);
+      }
+      .tagline {
+        margin: 14px 0 4px;
+        font-size: clamp(16px, 4.4vw, 19px);
+        font-weight: 800;
+      }
+      .howto {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.55;
+        max-width: 400px;
+      }
+      .howto b { color: var(--ink); }
+      .howto .gold { color: var(--gold); font-weight: 800; }
+      .big-btn {
+        appearance: none;
+        border: 0;
+        margin-top: 22px;
+        background: var(--gold);
+        color: #191200;
+        font-size: 19px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        padding: 15px 42px;
+        border-radius: 999px;
+        cursor: pointer;
+        box-shadow: 0 0 26px rgba(255, 210, 61, 0.35);
+      }
+      .big-btn:active { transform: scale(0.97); }
+      .big-btn.cyan { background: var(--cyan); color: #001318; box-shadow: 0 0 26px rgba(41, 230, 255, 0.35); }
+
+      .round-end-title {
+        margin: 0;
+        font-size: clamp(26px, 7vw, 36px);
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .round-stats {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        width: min(340px, 100%);
+      }
+      .stat-box {
+        background: var(--panel-2);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 8px;
+      }
+      .stat-box .num { font-size: 26px; font-weight: 900; }
+      .stat-box .lbl { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: var(--muted); margin-top: 2px; }
+      .next-note { margin-top: 14px; color: var(--muted); font-size: 13.5px; }
+      .next-note b { color: var(--cyan); }
+
+      /* ---------- Score reveal ---------- */
+      .reveal {
+        position: absolute; inset: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        pointer-events: none;
+        z-index: 4;
+        opacity: 0;
+      }
+      .reveal.show { animation: revealPop 1.5s ease-out forwards; }
+      .reveal .verdict {
+        font-size: clamp(22px, 6.4vw, 34px);
+        font-weight: 900;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--gold);
+        text-shadow: 0 0 24px rgba(255, 210, 61, 0.6), 0 2px 0 rgba(0,0,0,0.6);
+      }
+      .reveal .points {
+        font-size: clamp(52px, 15vw, 84px);
+        font-weight: 900;
+        line-height: 1;
+        color: #fff;
+        text-shadow: 0 0 30px rgba(41, 230, 255, 0.65), 0 3px 0 rgba(0,0,0,0.55);
+      }
+      .reveal.dna .verdict { color: var(--magenta); text-shadow: 0 0 24px rgba(255, 61, 240, 0.6), 0 2px 0 rgba(0,0,0,0.6); }
+      @keyframes revealPop {
+        0% { opacity: 0; transform: scale(0.7); }
+        12% { opacity: 1; transform: scale(1.08); }
+        20% { transform: scale(1); }
+        78% { opacity: 1; }
+        100% { opacity: 0; transform: scale(1.02); }
+      }
+
+      /* ---------- Meter ---------- */
+      .meter-wrap {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 9px 12px 11px;
+      }
+      .meter-head {
+        display: flex; justify-content: space-between; align-items: baseline;
+        font-size: 11px; font-weight: 800; letter-spacing: 0.14em; color: var(--muted);
+        text-transform: uppercase;
+      }
+      .meter-head .meter-state { color: var(--cyan); letter-spacing: 0.04em; }
+      .meter-track {
+        margin-top: 7px;
+        height: 10px;
+        border-radius: 999px;
+        background: #05060f;
+        border: 1px solid var(--line);
+        overflow: hidden;
+      }
+      .meter-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #3153ff, var(--cyan) 60%, var(--green));
+        transition: none;
+      }
+      .meter-wrap.off { opacity: 0.55; }
+      .meter-wrap.off .meter-fill { background: #2a2f4d; }
+
+      /* ---------- Call button + calls ---------- */
+      .call-btn {
+        appearance: none;
+        border: 0;
+        width: 100%;
+        padding: 19px 16px;
+        border-radius: 16px;
+        background: #ff2e63;
+        color: #fff;
+        font-size: clamp(24px, 6.5vw, 30px);
+        font-weight: 900;
+        letter-spacing: 0.14em;
+        cursor: pointer;
+        box-shadow: 0 6px 0 #a3133c, 0 0 30px rgba(255, 46, 99, 0.35);
+        text-transform: uppercase;
+        touch-action: manipulation;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .call-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #a3133c, 0 0 30px rgba(255, 46, 99, 0.35); }
+      .call-btn:disabled { background: #2a2f4d; color: var(--muted); box-shadow: 0 6px 0 #171b31; cursor: default; }
+
+      .calls-row {
+        display: flex; align-items: center; gap: 8px;
+      }
+      .calls-label { font-size: 11px; font-weight: 800; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; margin-right: 2px; }
+      .chip {
+        flex: 1;
+        text-align: center;
+        background: var(--panel);
+        border: 1.5px dashed var(--line);
+        border-radius: 10px;
+        padding: 8px 4px;
+        font-size: 16px;
+        font-weight: 900;
+        color: var(--muted);
+        min-height: 40px;
+      }
+      .chip.filled { border-style: solid; border-color: var(--cyan); color: var(--ink); background: var(--panel-2); }
+      .chip.dna { border-color: var(--magenta); color: var(--magenta); }
+      .chip.hot { border-color: var(--gold); color: var(--gold); }
+
+      .session-row {
+        display: flex; justify-content: space-between; gap: 8px;
+        font-size: 13px; font-weight: 700; color: var(--muted);
+        padding: 0 2px;
+      }
+      .session-row b { color: var(--ink); font-size: 14px; }
+
+      footer {
+        text-align: center;
+        font-size: 13px;
+        color: var(--muted);
+        padding-top: 4px;
+        line-height: 1.5;
+      }
+      footer a { color: var(--cyan); font-weight: 800; text-decoration: none; }
+      footer a:hover { text-decoration: underline; }
+      .sr-only {
+        position: absolute; width: 1px; height: 1px;
+        overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+      }
+
+      /* ---------- Tutorial: demo / coach / cycle bar / freeze ---------- */
+      #startScreen { background: rgba(4, 5, 16, 0.60); backdrop-filter: none; justify-content: flex-start; padding-top: 18px; overflow-y: auto; }
+      .demo-strip {
+        margin-top: 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
+        font-size: 11px; font-weight: 900; letter-spacing: 0.1em;
+      }
+      .demo-strip .step { background: rgba(18,22,47,0.92); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; }
+      .demo-strip .step.line-step { color: var(--green); border-color: var(--green); }
+      .demo-strip .step.chaos-step { color: #ff5470; }
+      .demo-strip .arrow { color: var(--muted); }
+      .demo-flash {
+        margin-top: 12px; min-height: 34px; display: flex; align-items: center;
+        background: var(--gold); color: #191200; border-radius: 999px; padding: 7px 18px;
+        font-size: 16px; font-weight: 900; letter-spacing: 0.12em;
+        opacity: 0; transform: scale(0.85); transition: opacity 0.12s, transform 0.12s;
+        box-shadow: 0 0 26px rgba(255, 210, 61, 0.55);
+      }
+      .demo-flash.on { opacity: 1; transform: scale(1); animation: demoBlink 0.5s steps(2) infinite; }
+      @keyframes demoBlink { 50% { box-shadow: 0 0 6px rgba(255,210,61,0.2); } }
+      .demo-note { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+      .call-btn.demo-pulse { animation: demoPulse 0.55s ease-in-out infinite; box-shadow: 0 6px 0 #a3133c, 0 0 44px rgba(255, 210, 61, 0.95); outline: 3px solid var(--gold); }
+      @keyframes demoPulse { 50% { transform: scale(1.03); } }
+
+      .coach-label {
+        position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
+        background: rgba(5, 6, 20, 0.85); border: 1px solid var(--gold); color: var(--gold);
+        border-radius: 10px; padding: 6px 13px; font-size: 13px; font-weight: 800;
+        pointer-events: none; white-space: nowrap; max-width: 94%; z-index: 3;
+      }
+      .coach-label.hidden { display: none; }
+      .practice-tag {
+        position: absolute; top: 10px; left: 10px; z-index: 3;
+        background: var(--gold); color: #191200; border-radius: 999px; padding: 5px 11px;
+        font-size: 11px; font-weight: 900; letter-spacing: 0.12em; pointer-events: none;
+      }
+      .practice-tag.hidden { display: none; }
+
+      .cycle-bar-wrap {
+        background: var(--panel); border: 1px solid var(--gold); border-radius: 12px; padding: 9px 12px 8px;
+      }
+      .cycle-bar-wrap.hidden { display: none; }
+      .cycle-bar-head { display: flex; justify-content: space-between; font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; }
+      .cycle-bar-head .cb-now { color: var(--gold); letter-spacing: 0.02em; text-transform: none; font-size: 12px; }
+      .cycle-bar-track { position: relative; margin-top: 16px; height: 8px; border-radius: 999px; background: #05060f; border: 1px solid var(--line); }
+      .cycle-bar-fill { height: 100%; width: 0%; border-radius: 999px; background: var(--gold); }
+      .cycle-bar-dot { position: absolute; top: 50%; width: 15px; height: 15px; border-radius: 50%; transform: translate(-50%, -50%); background: #fff; border: 3px solid var(--gold); box-shadow: 0 0 10px rgba(255,210,61,0.7); }
+      .cycle-bar-mark { position: absolute; top: -13px; transform: translateX(-50%); font-size: 9.5px; font-weight: 900; letter-spacing: 0.06em; color: var(--muted); white-space: nowrap; }
+      .cycle-bar-mark.m-line { color: var(--green); }
+      .cycle-bar-mark.m-dna { color: var(--magenta); }
+      .speed-note { text-align: center; font-size: 12.5px; color: var(--muted); margin-top: -4px; }
+      .speed-note b { color: var(--gold); }
+
+      .freeze-overlay {
+        position: absolute; inset: 0; z-index: 6;
+        display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+        padding: 0 16px 64px; pointer-events: none; text-align: center;
+      }
+      .freeze-overlay.hidden { display: none; }
+      .freeze-card {
+        background: rgba(4, 5, 16, 0.88); border: 2px solid var(--cyan); border-radius: 16px;
+        padding: 14px 22px 12px; max-width: 92%;
+      }
+      .freeze-card .f-timing { font-size: clamp(26px, 7.5vw, 38px); font-weight: 900; letter-spacing: 0.06em; color: var(--gold); line-height: 1.05; }
+      .freeze-card .f-points { font-size: 17px; font-weight: 800; color: var(--ink); margin-top: 4px; }
+      .freeze-card .f-points b { color: var(--cyan); font-size: 20px; }
+      .freeze-card .f-sub { font-size: 12.5px; color: var(--muted); margin-top: 5px; line-height: 1.45; }
+      .freeze-card .f-tap { font-size: 11px; font-weight: 800; letter-spacing: 0.12em; color: var(--muted); margin-top: 7px; text-transform: uppercase; }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="hud">
+        <div class="hud-left">
+          <span class="badge">ROUND <b id="roundNum">PRACTICE</b></span>
+          <span class="badge gold">SPEED <b id="cycleSecs">Lv 1 · 45s</b></span>
+        </div>
+        <div class="hud-right">
+          <span class="badge">BEST <b id="hudBest">0</b></span>
+          <button class="icon-btn" id="muteBtn" type="button" aria-label="Mute sound" aria-pressed="false">🔊</button>
+        </div>
+      </div>
+
+      <div class="stage" id="stage">
+        <canvas id="game" aria-label="Thirteen rainbow pendulum balls swinging inside a neon V frame"></canvas>
+        <div class="pattern-pill" id="patternPill">ONE LINE</div>
+        <div class="practice-tag" id="practiceTag">★ PRACTICE</div>
+        <div class="coach-label hidden" id="coachLabel">Watch them spread out…</div>
+        <div class="swing-counter" id="swingCounter">Bottom ball: <b>0 / 12</b> swings ahead</div>
+        <div class="flash" id="flash"></div>
+
+        <div class="freeze-overlay hidden" id="freezeOverlay">
+          <div class="freeze-card">
+            <div class="f-timing" id="freezeTiming">THAT'S THE LINE!</div>
+            <div class="f-points" id="freezePoints">You scored <b>1,000</b></div>
+            <div class="f-sub" id="freezeSub">The white line shows exactly where the balls were when you called it.</div>
+            <div class="f-tap">Tap to keep playing</div>
+          </div>
+        </div>
+
+        <div class="reveal" id="reveal" aria-hidden="true">
+          <div class="verdict" id="revealVerdict">PERFECT LINE!</div>
+          <div class="points" id="revealPoints">1,000</div>
+        </div>
+
+        <div class="overlay" id="startScreen">
+          <h1 class="game-title">
+            <span class="wave">Pendulum Wave</span>
+            <span class="callit">Call It!</span>
+          </h1>
+          <p class="tagline">13 balls. One perfect line. Call the moment.</p>
+          <div class="demo-strip" aria-hidden="true">
+            <span class="step line-step">① ONE LINE</span><span class="arrow">→</span>
+            <span class="step chaos-step">② CHAOS</span><span class="arrow">→</span>
+            <span class="step line-step">③ ONE LINE AGAIN</span>
+          </div>
+          <div class="demo-flash" id="demoFlash">👆 CALL IT HERE!</div>
+          <p class="demo-note">Watch the balls behind this panel — when they snap into one line and the gold label flashes, that's your moment. The button below lights up too.</p>
+          <p class="howto">
+            You get <b>3 calls per round</b>. A dead-perfect call scores
+            <b>1,000</b>. Catch the <span class="gold">DNA helix</span> at the
+            half-cycle for a <span class="gold">250</span> bonus.
+            <b>Round 1 is practice</b> — slow, with coaching. Nail good calls
+            and the game <b>speeds up</b>; miss badly and it eases off.
+          </p>
+          <button class="big-btn" id="playBtn" type="button">▶ Start Practice</button>
+        </div>
+
+        <div class="overlay hidden" id="roundEnd">
+          <h2 class="round-end-title" id="roundEndTitle">Round 1 Done</h2>
+          <div class="round-stats">
+            <div class="stat-box"><div class="num" id="endRoundTotal">0</div><div class="lbl">ROUND TOTAL</div></div>
+            <div class="stat-box"><div class="num" id="endBestCall">0</div><div class="lbl">BEST CALL</div></div>
+            <div class="stat-box"><div class="num" id="endSessionTotal">0</div><div class="lbl">SESSION TOTAL</div></div>
+            <div class="stat-box"><div class="num" id="endSessionBest">0</div><div class="lbl">SESSION BEST</div></div>
+          </div>
+          <p class="next-note" id="nextNote">Next: <b>24s cycle</b> — the line comes back faster.</p>
+          <button class="big-btn cyan" id="nextRoundBtn" type="button">Next Round →</button>
+        </div>
+      </div>
+
+      <div class="cycle-bar-wrap" id="cycleBarWrap">
+        <div class="cycle-bar-head">
+          <span>Where you are in the cycle</span>
+          <span class="cb-now" id="cycleBarNow">Line is at the far right →</span>
+        </div>
+        <div class="cycle-bar-track">
+          <span class="cycle-bar-mark m-line" style="left:0%">LINE</span>
+          <span class="cycle-bar-mark m-dna" style="left:50%">DNA</span>
+          <span class="cycle-bar-mark m-line" style="left:100%">LINE</span>
+          <div class="cycle-bar-fill" id="cycleBarFill"></div>
+          <div class="cycle-bar-dot" id="cycleBarDot" style="left:0%"></div>
+        </div>
+      </div>
+
+      <div class="speed-note" id="speedNote">Good calls (700+) make the next cycle <b>faster</b> · bad calls ease it back</div>
+
+      <div class="meter-wrap" id="meterWrap">
+        <div class="meter-head">
+          <span>Alignment meter</span>
+          <span class="meter-state" id="meterState">Watch it climb as the line forms</span>
+        </div>
+        <div class="meter-track"><div class="meter-fill" id="meterFill"></div></div>
+      </div>
+
+      <button class="call-btn" id="callBtn" type="button" disabled>Call It!</button>
+
+      <div class="calls-row" aria-label="Your calls this round">
+        <span class="calls-label">Calls</span>
+        <div class="chip" id="chip0">—</div>
+        <div class="chip" id="chip1">—</div>
+        <div class="chip" id="chip2">—</div>
+      </div>
+
+      <div class="session-row">
+        <span>Session total <b id="sessionTotal">0</b></span>
+        <span>Session best <b id="sessionBest">0</b></span>
+      </div>
+
+      <footer>
+        From <a href="https://www.facebook.com/workandmoneyla" target="_blank" rel="noopener">Work &amp; Money Los Angeles</a> — real jobs &amp; money help daily
+      </footer>
+
+      <p class="sr-only" aria-live="polite" id="liveScore"></p>
+    </div>
+
+    <script>
+      (function () {
+        "use strict";
+
+        // ---------- Config ----------
+        var BALLS = 13;
+        var TOP_SWINGS = 18;           // top ball's full swings per cycle; ball i does TOP_SWINGS + i
+        var EXTRA_SWINGS = 12;         // bottom ball gains exactly this many on the top per cycle
+        var CALLS_PER_ROUND = 3;
+        var DNA_SCORE = 250;
+        var DNA_THRESHOLD = 0.9;       // DNA coherence needed to spot it
+        var PERFECT_R = 0.998;         // coherence that snaps to a full 1,000
+
+        // Rainbow: red (largest, top) -> magenta (smallest, bottom)
+        var ballColors = [];
+        for (var ci = 0; ci < BALLS; ci++) {
+          var hue = Math.round((ci / (BALLS - 1)) * 300); // 0 = red ... 300 = magenta
+          ballColors.push({ hue: hue, css: "hsl(" + hue + ", 100%, 58%)" });
+        }
+
+        var DEMO_CYCLE = 10;           // start-screen demo loop length (s)
+        var MIN_CYCLE = 15;            // adaptive speed floor
+        function roundStartCycle(r) { // pace a round STARTS at; calls then adapt it
+          if (r <= 1) return 45;
+          if (r === 2) return 32;
+          if (r === 3) return 26;
+          return 22;
+        }
+        function cycleForRound(r) { return roundStartCycle(r); }
+        function meterForRound(r) { return r <= 2; }
+        function speedLevel(cyc) {
+          if (cyc >= 42) return 1;
+          if (cyc >= 38) return 2;
+          if (cyc >= 33) return 3;
+          if (cyc >= 28) return 4;
+          if (cyc >= 24) return 5;
+          if (cyc >= 20) return 6;
+          if (cyc >= 17) return 7;
+          return 8;
+        }
+
+        // ---------- DOM ----------
+        var canvas = document.getElementById("game");
+        var ctx = canvas.getContext("2d");
+        var stage = document.getElementById("stage");
+        var pill = document.getElementById("patternPill");
+        var swingCounter = document.getElementById("swingCounter");
+        var flashEl = document.getElementById("flash");
+        var revealEl = document.getElementById("reveal");
+        var revealVerdict = document.getElementById("revealVerdict");
+        var revealPoints = document.getElementById("revealPoints");
+        var startScreen = document.getElementById("startScreen");
+        var roundEnd = document.getElementById("roundEnd");
+        var playBtn = document.getElementById("playBtn");
+        var nextRoundBtn = document.getElementById("nextRoundBtn");
+        var callBtn = document.getElementById("callBtn");
+        var muteBtn = document.getElementById("muteBtn");
+        var roundNumEl = document.getElementById("roundNum");
+        var cycleSecsEl = document.getElementById("cycleSecs");
+        var hudBestEl = document.getElementById("hudBest");
+        var meterWrap = document.getElementById("meterWrap");
+        var meterFill = document.getElementById("meterFill");
+        var meterState = document.getElementById("meterState");
+        var sessionTotalEl = document.getElementById("sessionTotal");
+        var sessionBestEl = document.getElementById("sessionBest");
+        var liveScore = document.getElementById("liveScore");
+        var chips = [document.getElementById("chip0"), document.getElementById("chip1"), document.getElementById("chip2")];
+        var demoFlash = document.getElementById("demoFlash");
+        var coachLabel = document.getElementById("coachLabel");
+        var practiceTag = document.getElementById("practiceTag");
+        var cycleBarWrap = document.getElementById("cycleBarWrap");
+        var cycleBarFill = document.getElementById("cycleBarFill");
+        var cycleBarDot = document.getElementById("cycleBarDot");
+        var cycleBarNow = document.getElementById("cycleBarNow");
+        var speedNote = document.getElementById("speedNote");
+        var freezeOverlay = document.getElementById("freezeOverlay");
+        var freezeTiming = document.getElementById("freezeTiming");
+        var freezePoints = document.getElementById("freezePoints");
+        var freezeSub = document.getElementById("freezeSub");
+
+        // ---------- State ----------
+        var state = "start"; // start (demo) | playing | roundEnd
+        var round = 1;
+        var cycleDur = cycleForRound(1);
+        var cycleElapsed = 0;     // seconds into the current cycle
+        var cyclesDone = 0;       // completed cycles (keeps tick phases continuous)
+        var pendingCycleDur = null; // adaptive pace, applied at the next cycle boundary
+        var lastTs = null;
+        var timeScale = 1;
+        var slowmoUntil = 0;      // performance.now() timestamp
+        var flashAlpha = 0;
+        var calls = [];           // {score, dna}
+        var callCooldownUntil = 0;
+        var roundEndTimer = null;
+        var sessionTotal = 0;
+        var sessionBest = 0;
+        var particles = [];
+        var muted = false;
+        // Freeze-frame feedback state
+        var frozen = false;
+        var frozenU = 0;
+        var freezeTimer = null;
+        var lastCoachText = "";
+        var demoLineOn = false;
+        function effCycle() { return state === "start" ? DEMO_CYCLE : cycleDur; }
+        function currentU() { return cycleElapsed / effCycle(); }
+
+        // Pattern label with hysteresis
+        var currentLabel = "ONE LINE";
+        var candidateLabel = "ONE LINE";
+        var candidateSince = 0;
+
+        // Wall-hit tracking per ball: index of last extreme passed
+        var lastExtreme = new Array(BALLS).fill(0);
+
+        // ---------- Canvas sizing (logical 720 x 900) ----------
+        var LW = 720, LH = 900;
+        function fitCanvas() {
+          var rect = stage.getBoundingClientRect();
+          var dpr = Math.min(window.devicePixelRatio || 1, 2);
+          canvas.width = Math.round(rect.width * dpr);
+          canvas.height = Math.round(rect.height * dpr);
+        }
+        window.addEventListener("resize", fitCanvas);
+
+        // Ball geometry for a given cycle position u (defaults to live position;
+        // the freeze-frame passes the frozen u so the snapshot never moves)
+        function ballPositions(uOverride) {
+          var u = (typeof uOverride === "number") ? uOverride : currentU();
+          var cx = LW / 2;
+          var topY = LH * 0.15, bottomY = LH * 0.86;
+          var pos = [];
+          for (var i = 0; i < BALLS; i++) {
+            var f = i / (BALLS - 1);
+            var theta = 2 * Math.PI * (TOP_SWINGS + i) * u;
+            var s = Math.sin(theta);
+            var amp = (0.365 - 0.29 * f) * LW;      // wide at top, narrow at bottom -> V
+            var yBase = topY + (bottomY - topY) * f;
+            var y = yBase - 5 * s * s;              // pendulum rise at the extremes
+            var r = 31 - 15 * f;                    // 31 -> 16
+            pos.push({ x: cx + amp * s, y: y, r: r, s: s, amp: amp, yBase: yBase, theta: theta });
+          }
+          return { pos: pos, u: u };
+        }
+
+        // Alignment coherence R and DNA coherence D from the phase ladder.
+        // Relative phase of ball i vs the top ball is 2*pi*i*u (mod 2*pi).
+        function coherence(u) {
+          var sr = 0, si = 0, dr = 0, di = 0;
+          for (var i = 0; i < BALLS; i++) {
+            var ph = 2 * Math.PI * i * u;
+            sr += Math.cos(ph); si += Math.sin(ph);
+            var alt = (i % 2 === 0) ? 1 : -1;       // DNA = alignment against the alternating pattern
+            dr += alt * Math.cos(ph); di += alt * Math.sin(ph);
+          }
+          return {
+            R: Math.sqrt(sr * sr + si * si) / BALLS,
+            D: Math.sqrt(dr * dr + di * di) / BALLS
+          };
+        }
+
+        function patternFor(R, D) {
+          if (R > 0.8) return "ONE LINE";
+          if (D > 0.8) return "DNA";
+          if (R > 0.34 || D > 0.34) return "GROUPS";
+          return "CHAOS";
+        }
+
+        // ---------- Audio: synthesized ticks, no files, no music ----------
+        var audioCtx = null;
+        var tickWindowStart = 0, ticksInWindow = 0;
+        function ensureAudio() {
+          if (!audioCtx) {
+            var AC = window.AudioContext || window.webkitAudioContext;
+            if (AC) audioCtx = new AC();
+          }
+          if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+        }
+        function tick(ballIdx, side) {
+          if (muted || !audioCtx || audioCtx.state !== "running") return;
+          var now = performance.now();
+          if (now - tickWindowStart > 100) { tickWindowStart = now; ticksInWindow = 0; }
+          if (ticksInWindow >= 12) return; // keep the patter from turning to mush
+          ticksInWindow++;
+          var t = audioCtx.currentTime;
+          // Pitch ladder: low for the big red ball, high for magenta
+          var freq = 150 * Math.pow(2, (ballIdx / (BALLS - 1)) * 3); // 150 Hz -> 1200 Hz
+          var osc = audioCtx.createOscillator();
+          var gain = audioCtx.createGain();
+          var panNode = null;
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(freq, t);
+          osc.frequency.exponentialRampToValueAtTime(Math.max(60, freq * 0.55), t + 0.04);
+          var vol = 0.10 - 0.05 * (ballIdx / (BALLS - 1));
+          gain.gain.setValueAtTime(vol, t);
+          gain.gain.exponentialRampToValueAtTime(0.0008, t + 0.055);
+          if (audioCtx.createStereoPanner) {
+            panNode = audioCtx.createStereoPanner();
+            panNode.pan.setValueAtTime(Math.max(-0.85, Math.min(0.85, side)), t);
+            osc.connect(gain); gain.connect(panNode); panNode.connect(audioCtx.destination);
+          } else {
+            osc.connect(gain); gain.connect(audioCtx.destination);
+          }
+          osc.start(t);
+          osc.stop(t + 0.07);
+        }
+        function chime(good) {
+          if (muted || !audioCtx || audioCtx.state !== "running") return;
+          var t = audioCtx.currentTime;
+          var notes = good ? [523.25, 659.25, 783.99, 1046.5] : [392, 329.63];
+          notes.forEach(function (freq, k) {
+            var osc = audioCtx.createOscillator();
+            var gain = audioCtx.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(freq, t + k * 0.07);
+            gain.gain.setValueAtTime(0.0001, t + k * 0.07);
+            gain.gain.exponentialRampToValueAtTime(0.12, t + k * 0.07 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0008, t + k * 0.07 + 0.35);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(t + k * 0.07);
+            osc.stop(t + k * 0.07 + 0.4);
+          });
+        }
+
+        // ---------- Effects ----------
+        function spawnBurst(pos, strength) {
+          var cx = LW / 2;
+          // Line direction through the ball centers right now
+          var p0 = pos[0], p1 = pos[BALLS - 1];
+          var dx = p1.x - p0.x, dy = p1.y - p0.y;
+          var len = Math.sqrt(dx * dx + dy * dy) || 1;
+          var nx = -dy / len, ny = dx / len; // normal to the line
+          var count = Math.round(50 * strength);
+          for (var k = 0; k < count; k++) {
+            var b = pos[Math.floor(Math.random() * BALLS)];
+            var sp = (Math.random() * 2 - 1);
+            particles.push({
+              x: b.x, y: b.y,
+              vx: nx * sp * 260 + (Math.random() * 60 - 30),
+              vy: ny * sp * 260 + (Math.random() * 60 - 30) - 40,
+              life: 1, decay: 0.9 + Math.random() * 0.9,
+              r: 2 + Math.random() * 4,
+              color: ballColors[Math.floor(Math.random() * BALLS)].css
+            });
+          }
+          // A few sparks outward from center too
+          for (var j = 0; j < Math.round(24 * strength); j++) {
+            var a = Math.random() * Math.PI * 2;
+            var v = 120 + Math.random() * 320;
+            particles.push({
+              x: cx, y: LH * 0.5,
+              vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+              life: 1, decay: 1.1 + Math.random() * 0.8,
+              r: 2 + Math.random() * 3.5,
+              color: ballColors[Math.floor(Math.random() * BALLS)].css
+            });
+          }
+        }
+
+        // ---------- Drawing ----------
+        function draw(now) {
+          var cw = canvas.width, ch = canvas.height;
+          ctx.setTransform(cw / LW, 0, 0, ch / LH, 0, 0);
+
+          // Background
+          var bg = ctx.createLinearGradient(0, 0, 0, LH);
+          bg.addColorStop(0, "#070818");
+          bg.addColorStop(0.6, "#05060f");
+          bg.addColorStop(1, "#03040a");
+          ctx.fillStyle = bg;
+          ctx.fillRect(0, 0, LW, LH);
+
+          // Faint star specks
+          ctx.fillStyle = "rgba(160,180,255,0.20)";
+          for (var sIdx = 0; sIdx < 26; sIdx++) {
+            var sx = (sIdx * 173.3) % LW, sy = (sIdx * 289.7) % LH;
+            ctx.fillRect(sx, sy, 2.2, 2.2);
+          }
+
+          var bp = ballPositions(frozen ? frozenU : undefined);
+          var pos = bp.pos, u = bp.u;
+          var coh = coherence(u);
+          var cx = LW / 2;
+
+          // Cycle progress hairline at the top
+          ctx.fillStyle = "rgba(41,230,255,0.16)";
+          ctx.fillRect(0, 0, LW, 6);
+          ctx.fillStyle = "rgba(41,230,255,0.85)";
+          ctx.fillRect(0, 0, LW * u, 6);
+
+          // Swing arc paths (nested arcs)
+          for (var i = 0; i < BALLS; i++) {
+            var p = pos[i];
+            ctx.beginPath();
+            ctx.moveTo(cx - p.amp, p.yBase - 5);
+            ctx.quadraticCurveTo(cx, p.yBase + 13, cx + p.amp, p.yBase - 5);
+            ctx.strokeStyle = "hsla(" + ballColors[i].hue + ", 100%, 62%, 0.20)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+
+          // Neon V frame (fixed)
+          var topY = LH * 0.15, bottomY = LH * 0.86;
+          var leftTopX = cx - 0.365 * LW - 52, rightTopX = cx + 0.365 * LW + 52;
+          var apexX = cx, apexY = bottomY + 58;
+          ctx.save();
+          ctx.strokeStyle = "#29e6ff";
+          ctx.lineWidth = 5;
+          ctx.shadowColor = "rgba(41,230,255,0.85)";
+          ctx.shadowBlur = 18;
+          ctx.beginPath();
+          ctx.moveTo(leftTopX, topY - 46);
+          ctx.lineTo(apexX, apexY);
+          ctx.lineTo(rightTopX, topY - 46);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(leftTopX - 14, topY - 46);
+          ctx.lineTo(rightTopX + 14, topY - 46);
+          ctx.stroke();
+          ctx.restore();
+          // Apex jewel
+          ctx.beginPath();
+          ctx.arc(apexX, apexY, 7, 0, Math.PI * 2);
+          ctx.fillStyle = "#29e6ff";
+          ctx.fill();
+
+          // Freeze-frame snapshot: bright line + rings through the called instant
+          if (frozen) {
+            ctx.save();
+            ctx.strokeStyle = "rgba(255,255,255,0.95)";
+            ctx.lineWidth = 4;
+            ctx.shadowColor = "rgba(255,210,61,0.95)";
+            ctx.shadowBlur = 16;
+            ctx.beginPath();
+            ctx.moveTo(pos[0].x, pos[0].y);
+            ctx.lineTo(pos[BALLS - 1].x, pos[BALLS - 1].y);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = "rgba(255,210,61,0.9)";
+            ctx.lineWidth = 2.5;
+            for (var fi = 0; fi < BALLS; fi++) {
+              ctx.beginPath();
+              ctx.arc(pos[fi].x, pos[fi].y, pos[fi].r + 5, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+            ctx.restore();
+          }
+
+          // Alignment line highlight: glows in as the line forms
+          if (coh.R > 0.62) {
+            var a = (coh.R - 0.62) / 0.38;
+            ctx.save();
+            ctx.strokeStyle = "rgba(61,255,154," + (0.25 + 0.65 * a).toFixed(3) + ")";
+            ctx.lineWidth = 3 + 5 * a;
+            ctx.shadowColor = "rgba(61,255,154,0.9)";
+            ctx.shadowBlur = 22 * a;
+            ctx.beginPath();
+            ctx.moveTo(pos[0].x, pos[0].y);
+            ctx.lineTo(pos[BALLS - 1].x, pos[BALLS - 1].y);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // Particles (behind balls' gloss, above frame)
+          for (var pi = particles.length - 1; pi >= 0; pi--) {
+            var pt = particles[pi];
+            ctx.globalAlpha = Math.max(0, pt.life);
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
+            ctx.fillStyle = pt.color;
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+
+          // Balls: glossy rainbow spheres
+          for (var bi = 0; bi < BALLS; bi++) {
+            var b = pos[bi];
+            var hue = ballColors[bi].hue;
+            var grad = ctx.createRadialGradient(
+              b.x - b.r * 0.38, b.y - b.r * 0.42, b.r * 0.12,
+              b.x, b.y, b.r
+            );
+            grad.addColorStop(0, "hsl(" + hue + ", 100%, 88%)");
+            grad.addColorStop(0.35, "hsl(" + hue + ", 100%, 62%)");
+            grad.addColorStop(1, "hsl(" + hue + ", 95%, 34%)");
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+            ctx.fillStyle = grad;
+            ctx.fill();
+            ctx.lineWidth = 1.6;
+            ctx.strokeStyle = "hsla(" + hue + ", 100%, 80%, 0.55)";
+            ctx.stroke();
+            // Specular highlight
+            ctx.beginPath();
+            ctx.arc(b.x - b.r * 0.36, b.y - b.r * 0.42, b.r * 0.20, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255,255,255,0.85)";
+            ctx.fill();
+          }
+
+          return { u: u, R: coh.R, D: coh.D, pos: pos };
+        }
+
+        // ---------- Speed HUD + coaching ----------
+        function updateSpeedHud() {
+          cycleSecsEl.textContent = "Lv " + speedLevel(cycleDur) + " · " + cycleDur + "s";
+        }
+        function coachTextFor(R, D, u) {
+          if (R > 0.8) return "That's the LINE — CALL IT! 👆";
+          if (D > 0.8) return "That's the DNA — bonus if you call it! 🧬";
+          if (u > 0.82) return "Here comes the line… get ready…";
+          if (u > 0.38 && u < 0.62) return "Mid-cycle — watch for the DNA twist…";
+          if (u > 0.12) return "Full chaos — don't call yet, just watch";
+          return "They start in one line — watch them spread…";
+        }
+
+        // ---------- Main loop ----------
+        function frame(ts) {
+          if (lastTs === null) lastTs = ts;
+          var dtReal = Math.min(0.05, (ts - lastTs) / 1000);
+          lastTs = ts;
+
+          timeScale = (ts < slowmoUntil) ? 0.14 : 1;
+          if (!frozen && (state === "playing" || state === "start")) {
+            cycleElapsed += dtReal * timeScale;
+            var ec = effCycle();
+            if (cycleElapsed >= ec) {
+              cycleElapsed -= ec;
+              cyclesDone++;
+              // Adaptive pace lands exactly on the cycle boundary
+              if (state === "playing" && pendingCycleDur !== null && pendingCycleDur !== cycleDur) {
+                cycleDur = pendingCycleDur;
+                updateSpeedHud();
+              }
+              pendingCycleDur = null;
+            }
+          }
+
+          // Particle physics runs on real time
+          for (var pi = particles.length - 1; pi >= 0; pi--) {
+            var pt = particles[pi];
+            pt.x += pt.vx * dtReal;
+            pt.y += pt.vy * dtReal;
+            pt.vy += 300 * dtReal;
+            pt.life -= pt.decay * dtReal;
+            if (pt.life <= 0) particles.splice(pi, 1);
+          }
+          if (flashAlpha > 0) {
+            flashAlpha = Math.max(0, flashAlpha - dtReal * 2.4);
+            flashEl.style.opacity = flashAlpha.toFixed(3);
+          }
+
+          var info = draw(ts);
+
+          // Wall ticks: a ball "hits the wall" at each swing extreme
+          if (state === "playing" && !frozen) {
+            for (var i = 0; i < BALLS; i++) {
+              var theta = 2 * Math.PI * (TOP_SWINGS + i) * info.u +
+                          2 * Math.PI * (TOP_SWINGS + i) * cyclesDone;
+              var ext = Math.floor((theta - Math.PI / 2) / Math.PI);
+              if (ext !== lastExtreme[i]) {
+                lastExtreme[i] = ext;
+                tick(i, Math.sin(theta)); // pan follows the side the ball is on
+              }
+            }
+          }
+
+          // HUD: pattern pill (hysteresis), counter, meter
+          if (state === "playing" || state === "start") {
+            var label = patternFor(info.R, info.D);
+            if (label !== candidateLabel) { candidateLabel = label; candidateSince = ts; }
+            if (candidateLabel !== currentLabel && ts - candidateSince > 220) {
+              currentLabel = candidateLabel;
+              pill.textContent = currentLabel;
+              pill.className = "pattern-pill" +
+                (currentLabel === "DNA" ? " dna" : currentLabel === "ONE LINE" ? " line" : currentLabel === "CHAOS" ? " chaos" : "");
+            }
+            var ahead = Math.min(EXTRA_SWINGS, Math.floor(EXTRA_SWINGS * info.u + 1e-6));
+            swingCounter.innerHTML = "Bottom ball: <b>" + ahead + " / 12</b> swings ahead";
+            if (state === "playing" && meterForRound(round)) {
+              meterFill.style.width = (info.R * 100).toFixed(1) + "%";
+              meterState.textContent =
+                info.R > 0.8 ? "THE LINE IS FORMING —" :
+                info.R > 0.5 ? "Climbing…" :
+                info.R > 0.25 ? "Scattered" : "Chaos — wait for it";
+              meterState.style.color = info.R > 0.8 ? "#3dff9a" : "";
+            }
+          }
+
+          // Start-screen demo: flash CALL IT HERE + light the real button at the line
+          if (state === "start") {
+            var lineNow = info.R > 0.8;
+            if (lineNow !== demoLineOn) {
+              demoLineOn = lineNow;
+              demoFlash.classList.toggle("on", lineNow);
+              callBtn.classList.toggle("demo-pulse", lineNow);
+            }
+          }
+
+          // Practice coaching + cycle-position bar (Round 1)
+          if (state === "playing" && round === 1) {
+            var ct = coachTextFor(info.R, info.D, info.u);
+            if (ct !== lastCoachText) {
+              lastCoachText = ct;
+              coachLabel.textContent = ct;
+            }
+            var pct = (info.u * 100).toFixed(1) + "%";
+            cycleBarFill.style.width = pct;
+            cycleBarDot.style.left = pct;
+            cycleBarNow.textContent =
+              info.u > 0.85 ? "Line lands in " + Math.max(0, cycleDur - cycleElapsed).toFixed(1) + "s — get ready!" :
+              info.u > 0.42 && info.u < 0.58 ? "DNA is right here" :
+              info.u < 0.06 ? "Line! New cycle starting" :
+              "Line is at the far right →";
+          }
+
+          requestAnimationFrame(frame);
+        }
+
+        // ---------- Scoring ----------
+        function scoreCall() {
+          var u = currentU();
+          var coh = coherence(u);
+          var score, isDNA = false, verdict;
+          if (coh.D >= DNA_THRESHOLD && coh.R < 0.5) {
+            isDNA = true;
+            score = Math.max(DNA_SCORE, Math.round(1000 * Math.pow(coh.R, 5)));
+            verdict = "DNA SPOTTED!";
+          } else {
+            var R = coh.R >= PERFECT_R ? 1 : coh.R;
+            score = Math.round(1000 * Math.pow(R, 5));
+            if (score >= 1000) verdict = "PERFECT LINE!";
+            else if (score >= 950) verdict = "NEARLY PERFECT!";
+            else if (score >= 800) verdict = "SO CLOSE!";
+            else if (score >= 550) verdict = "GOOD EYE!";
+            else if (score >= 250) verdict = "GETTING THERE";
+            else if (score >= 80) verdict = "WAY OFF";
+            else verdict = "PURE CHAOS";
+          }
+          return { score: score, dna: isDNA, verdict: verdict, R: coh.R, D: coh.D, u: u };
+        }
+
+        // Plain-language timing vs the nearest perfect line (lines sit at u=0 and u=1)
+        function timingFeedback(result) {
+          if (result.dna) return { big: "THAT'S THE DNA! 🧬", sub: "You caught the half-cycle twist — that's the 250 bonus moment." };
+          var tIn = result.u * cycleDur;          // seconds into this cycle
+          var toEnd = cycleDur - tIn;              // seconds until the next line
+          if (result.score >= 950 || Math.min(tIn, toEnd) <= 0.2) {
+            return { big: "THAT'S THE LINE! 🎯", sub: "Dead on it — this is exactly the moment to call." };
+          }
+          if (toEnd <= tIn) {
+            return { big: toEnd.toFixed(1) + "s EARLY", sub: "So close — the line was still " + toEnd.toFixed(1) + " seconds away. Wait a hair longer." };
+          }
+          return { big: tIn.toFixed(1) + "s LATE", sub: "The line had just passed " + tIn.toFixed(1) + " seconds earlier. Call a touch sooner." };
+        }
+
+        // Adaptive pace: good calls speed the NEXT cycle up, bad calls ease it back
+        function planNextPace(score) {
+          var start = roundStartCycle(round);
+          if (score >= 700) pendingCycleDur = Math.max(MIN_CYCLE, cycleDur - 3);
+          else if (score >= 300) pendingCycleDur = cycleDur;
+          else pendingCycleDur = Math.min(start, cycleDur + 2);
+          return pendingCycleDur;
+        }
+
+        function endFreeze() {
+          if (!frozen) return;
+          frozen = false;
+          if (freezeTimer) { clearTimeout(freezeTimer); freezeTimer = null; }
+          freezeOverlay.classList.add("hidden");
+          if (calls.length >= CALLS_PER_ROUND) {
+            roundEndTimer = setTimeout(showRoundEnd, 500);
+          } else if (state === "playing") {
+            callBtn.disabled = false;
+            callBtn.textContent = "Call It! (" + (CALLS_PER_ROUND - calls.length) + " left)";
+          }
+        }
+
+        function doCall() {
+          if (state !== "playing" || frozen) return;
+          if (performance.now() < callCooldownUntil) return;
+          if (calls.length >= CALLS_PER_ROUND) return;
+          ensureAudio();
+          callCooldownUntil = performance.now() + 650;
+
+          var result = scoreCall();
+          var bp = ballPositions();
+          calls.push(result);
+          var nextPace = planNextPace(result.score);
+
+          // Chip
+          var chip = chips[calls.length - 1];
+          chip.textContent = result.score.toLocaleString("en-US");
+          chip.classList.add("filled");
+          if (result.dna) chip.classList.add("dna");
+          else if (result.score >= 800) chip.classList.add("hot");
+
+          // Reveal
+          revealEl.classList.remove("show", "dna");
+          void revealEl.offsetWidth; // restart animation
+          revealVerdict.textContent = result.verdict;
+          revealPoints.textContent = result.score.toLocaleString("en-US");
+          if (result.dna) revealEl.classList.add("dna");
+          revealEl.classList.add("show");
+          liveScore.textContent = result.verdict + " " + result.score + " points. " +
+            (CALLS_PER_ROUND - calls.length) + " calls left.";
+
+          // Juice
+          if (result.score >= 950 || result.dna) {
+            flashAlpha = result.score >= 950 ? 0.75 : 0.4;
+            flashEl.style.opacity = flashAlpha;
+            spawnBurst(bp.pos, result.score >= 950 ? 1 : 0.6);
+            chime(true);
+          } else if (result.score >= 700) {
+            spawnBurst(bp.pos, 0.45);
+            chime(true);
+          } else if (result.score >= 250) {
+            chime(false);
+          }
+
+          // Freeze-frame feedback: hold the called instant ~1.2s (tap to skip)
+          var fb = timingFeedback(result);
+          frozen = true;
+          frozenU = result.u;
+          freezeTiming.textContent = fb.big;
+          freezePoints.innerHTML = result.verdict + " — you scored <b>" + result.score.toLocaleString("en-US") + "</b>";
+          var paceNote = nextPace < cycleDur ? " Next cycle speeds up to " + nextPace + "s. ⚡"
+            : nextPace > cycleDur ? " Next cycle eases back to " + nextPace + "s so you can find the rhythm."
+            : " Pace holds at " + cycleDur + "s.";
+          freezeSub.textContent = fb.sub + " The white line shows exactly where the balls were when you called it." + paceNote;
+          freezeOverlay.classList.remove("hidden");
+          liveScore.textContent = fb.big + ". " + result.score + " points. " +
+            (CALLS_PER_ROUND - calls.length) + " calls left.";
+          callBtn.disabled = true;
+          callBtn.textContent = calls.length >= CALLS_PER_ROUND ? "Round Over" : "Frozen — look at your call…";
+          freezeTimer = setTimeout(endFreeze, 1200);
+        }
+
+        // ---------- Round flow ----------
+        function updateSessionHud() {
+          sessionTotalEl.textContent = sessionTotal.toLocaleString("en-US");
+          sessionBestEl.textContent = sessionBest.toLocaleString("en-US");
+          hudBestEl.textContent = sessionBest.toLocaleString("en-US");
+        }
+        function resetChips() {
+          chips.forEach(function (c) {
+            c.textContent = "—";
+            c.className = "chip";
+          });
+        }
+        function startRound(r) {
+          round = r;
+          cycleDur = cycleForRound(r);
+          pendingCycleDur = null;
+          cycleElapsed = 0;
+          cyclesDone = 0;
+          frozen = false;
+          if (freezeTimer) { clearTimeout(freezeTimer); freezeTimer = null; }
+          freezeOverlay.classList.add("hidden");
+          calls = [];
+          lastExtreme = new Array(BALLS).fill(0);
+          currentLabel = "ONE LINE"; candidateLabel = "ONE LINE";
+          lastCoachText = "";
+          pill.textContent = "ONE LINE";
+          pill.className = "pattern-pill line";
+          roundNumEl.textContent = r === 1 ? "PRACTICE" : String(r);
+          updateSpeedHud();
+          resetChips();
+          // Practice dressing: tag + coaching + cycle bar are Round 1 only
+          var isPractice = r === 1;
+          practiceTag.classList.toggle("hidden", !isPractice);
+          coachLabel.classList.toggle("hidden", !isPractice);
+          cycleBarWrap.classList.toggle("hidden", !isPractice);
+          speedNote.innerHTML = isPractice
+            ? "Practice pace: <b>45s cycle</b> — good calls (700+) make the next cycle <b>faster</b>"
+            : "Good calls (700+) make the next cycle <b>faster</b> · bad calls ease it back";
+          // Meter: visible rounds 1-2, gone from round 3 (eye alone)
+          if (meterForRound(r)) {
+            meterWrap.classList.remove("off");
+            meterWrap.style.display = "";
+            meterState.textContent = "Watch it climb as the line forms";
+            meterState.style.color = "";
+          } else {
+            meterWrap.style.display = "none"; // rounds 3+: eyes only, no gauge
+          }
+          callBtn.disabled = false;
+          callBtn.textContent = "Call It! (3 left)";
+          state = "playing";
+        }
+        function showRoundEnd() {
+          state = "roundEnd";
+          var roundTotal = calls.reduce(function (a, c) { return a + c.score; }, 0);
+          var bestCall = calls.reduce(function (a, c) { return Math.max(a, c.score); }, 0);
+          sessionTotal += roundTotal;
+          sessionBest = Math.max(sessionBest, bestCall);
+          updateSessionHud();
+          document.getElementById("roundEndTitle").textContent = round === 1 ? "Practice Done!" : "Round " + round + " Done";
+          document.getElementById("endRoundTotal").textContent = roundTotal.toLocaleString("en-US");
+          document.getElementById("endBestCall").textContent = bestCall.toLocaleString("en-US");
+          document.getElementById("endSessionTotal").textContent = sessionTotal.toLocaleString("en-US");
+          document.getElementById("endSessionBest").textContent = sessionBest.toLocaleString("en-US");
+          var next = round + 1;
+          var note;
+          if (next === 2) note = "Practice over! Round 2 starts at a <b>32s cycle</b> — and speeds up every time you nail a call (700+).";
+          else if (next === 3) note = "Next: starts at <b>26s</b>, adapts to your calls — and the alignment meter goes dark. Eyes only.";
+          else note = "Next: starts at <b>22s</b>, no meter, pace driven by your calls. Floor is 15s — good luck holding on.";
+          document.getElementById("nextNote").innerHTML = note;
+          nextRoundBtn.textContent = next === 2 ? "Start Round 2 →" : "Next Round →";
+          roundEnd.classList.remove("hidden");
+        }
+
+        // ---------- Wire up ----------
+        playBtn.addEventListener("click", function () {
+          ensureAudio();
+          demoLineOn = false;
+          demoFlash.classList.remove("on");
+          callBtn.classList.remove("demo-pulse");
+          startScreen.classList.add("hidden");
+          startRound(1);
+        });
+        nextRoundBtn.addEventListener("click", function () {
+          ensureAudio();
+          roundEnd.classList.add("hidden");
+          startRound(round + 1);
+        });
+        callBtn.addEventListener("click", doCall);
+        // Tap the stage to skip the freeze-frame early
+        stage.addEventListener("click", function () {
+          if (frozen) endFreeze();
+        });
+        document.addEventListener("keydown", function (e) {
+          if (e.code === "Space" && state === "playing") {
+            e.preventDefault();
+            if (frozen) endFreeze(); else doCall();
+          }
+        });
+        muteBtn.addEventListener("click", function () {
+          muted = !muted;
+          muteBtn.textContent = muted ? "🔇" : "🔊";
+          muteBtn.setAttribute("aria-pressed", muted ? "true" : "false");
+          muteBtn.setAttribute("aria-label", muted ? "Unmute sound" : "Mute sound");
+          if (!muted) ensureAudio();
+        });
+
+        updateSpeedHud();
+        fitCanvas();
+        // Refit after layout settles (aspect-ratio box)
+        setTimeout(fitCanvas, 60);
+        requestAnimationFrame(frame);
+      })();
+    </script>
+      <script>
+      /* WAM play counters (Abacus, keyless) - fire-and-forget; the game plays
+         identically if the counter service is unreachable. Each key fires at
+         most once per page load. No visible UI. */
+      (function () {
+        var NS = "https://abacus.jasoncameron.dev/hit/wam-games/";
+        var fired = {};
+        function hit(key) {
+          if (fired[key]) return;
+          fired[key] = true;
+          try {
+            fetch(NS + key, { mode: "no-cors", keepalive: true }).catch(function () {});
+          } catch (e) { /* counter is optional; never break the game */ }
+        }
+        hit("pendulum-open");
+        function armPlay(id) {
+          var el = document.getElementById(id);
+          if (el) el.addEventListener("click", function () { hit("pendulum-play"); });
+        }
+        armPlay("playBtn");   /* game start (Start Practice / Next Round also reuses round flow) */
+        armPlay("callBtn");   /* first CALL IT press */
+        var re = document.getElementById("roundEnd");
+        if (re && window.MutationObserver) {
+          var obs = new MutationObserver(function () {
+            if (!re.classList.contains("hidden")) hit("pendulum-finish");
+          });
+          obs.observe(re, { attributes: true, attributeFilter: ["class"] });
+        }
+      })();
+    </script>
+  </body>
+</html>
