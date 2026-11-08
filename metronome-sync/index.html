@@ -1,0 +1,1274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<link rel="icon" href="data:," />
+<title>Metronome Sync</title>
+<style>
+  :root{
+    --bg:#06070f;
+    --bg2:#0b0e1d;
+    --panel:#10142a;
+    --panel2:#151a36;
+    --line:rgba(120,140,255,.22);
+    --ink:#eef0ff;
+    --muted:#9aa3c7;
+    --faint:#6b7396;
+    --cyan:#2ee6ff;
+    --cyan-dim:#1599b3;
+    --gold:#ffc94d;
+    --gold-deep:#f59e0b;
+    --pink:#ff5da2;
+    --green:#3dff9e;
+    --red:#ff5d5d;
+    --radius:18px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(900px 500px at 50% -8%, rgba(46,230,255,.13), transparent 60%),
+      radial-gradient(700px 420px at 88% 22%, rgba(255,93,162,.08), transparent 60%),
+      radial-gradient(700px 500px at 8% 78%, rgba(255,201,77,.06), transparent 60%),
+      linear-gradient(180deg, var(--bg2), var(--bg) 55%);
+    color:var(--ink);
+    font-family:"Avenir Next","Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    min-height:100vh;
+    min-height:100dvh;
+  }
+  .wrap{
+    max-width:540px;
+    margin:0 auto;
+    padding:14px 14px 10px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  /* ---------- Title row ---------- */
+  .title-row{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:10px;
+    padding:2px 2px 0;
+  }
+  .title-block h1{
+    margin:0;
+    font-size:30px;
+    line-height:.95;
+    letter-spacing:.02em;
+    font-weight:900;
+    text-transform:uppercase;
+  }
+  .title-block h1 .thin{
+    display:block;
+    font-size:15px;
+    letter-spacing:.42em;
+    font-weight:700;
+    color:var(--cyan);
+    margin-top:5px;
+  }
+  .title-block p{
+    margin:7px 0 0;
+    font-size:13px;
+    line-height:1.45;
+    color:var(--muted);
+    max-width:36ch;
+  }
+  .icon-btn{
+    flex:0 0 auto;
+    width:46px;height:46px;
+    border-radius:13px;
+    border:1px solid var(--line);
+    background:var(--panel);
+    color:var(--ink);
+    font-size:20px;
+    cursor:pointer;
+    display:grid;place-items:center;
+    transition:transform .08s ease, border-color .15s ease;
+  }
+  .icon-btn:active{transform:scale(.94);}
+  .icon-btn:focus-visible, button:focus-visible, a:focus-visible{outline:2px solid var(--cyan); outline-offset:2px;}
+
+  /* ---------- HUD ---------- */
+  .hud{
+    background:linear-gradient(180deg, var(--panel2), var(--panel));
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:13px 14px 12px;
+  }
+  .sync-top{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .sync-label{
+    font-size:11px;
+    letter-spacing:.32em;
+    font-weight:800;
+    color:var(--faint);
+    text-transform:uppercase;
+  }
+  .sync-value{
+    font-size:58px;
+    line-height:.92;
+    font-weight:900;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:-.01em;
+  }
+  .sync-value small{font-size:28px; color:var(--muted); font-weight:800;}
+  .sync-value.hot{color:var(--gold); text-shadow:0 0 26px rgba(255,201,77,.45);}
+  .sync-value.warm{color:#8ff4ff;}
+  .timer-block{text-align:right; padding-bottom:4px;}
+  .timer-label{font-size:11px; letter-spacing:.28em; font-weight:800; color:var(--faint); text-transform:uppercase;}
+  .timer-value{
+    font-size:32px; font-weight:900; font-variant-numeric:tabular-nums; line-height:1;
+  }
+  .timer-value.low{color:var(--red); animation:pulse-red 1s ease-in-out infinite;}
+  @keyframes pulse-red{0%,100%{opacity:1}50%{opacity:.55}}
+  .bar{
+    margin-top:10px;
+    height:12px;
+    border-radius:999px;
+    background:rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.06);
+    overflow:hidden;
+    position:relative;
+  }
+  .bar-fill{
+    height:100%;
+    width:0%;
+    border-radius:999px;
+    background:linear-gradient(90deg, var(--cyan-dim), var(--cyan) 55%, var(--gold));
+    transition:width .18s ease;
+    box-shadow:0 0 14px rgba(46,230,255,.35);
+  }
+  .bar-target{
+    position:absolute; top:-2px; bottom:-2px; width:2px;
+    left:99%;
+    background:var(--gold);
+    box-shadow:0 0 8px rgba(255,201,77,.9);
+  }
+  .bar-caption{
+    display:flex; justify-content:space-between; gap:8px;
+    margin-top:6px;
+    font-size:11px; color:var(--faint); font-weight:600;
+  }
+  .hold-row{
+    margin-top:9px;
+    display:flex; align-items:center; gap:9px;
+    font-size:11px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:var(--faint);
+  }
+  .hold-track{
+    flex:1; height:7px; border-radius:999px; background:rgba(255,255,255,.07); overflow:hidden;
+  }
+  .hold-fill{
+    height:100%; width:0%;
+    background:var(--gold);
+    border-radius:999px;
+    box-shadow:0 0 10px rgba(255,201,77,.6);
+    transition:width .1s linear;
+  }
+  .hold-row.armed{color:var(--gold);}
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:8px;
+    margin-top:12px;
+  }
+  .stat{
+    background:rgba(255,255,255,.035);
+    border:1px solid rgba(255,255,255,.06);
+    border-radius:12px;
+    padding:8px 6px 7px;
+    text-align:center;
+  }
+  .stat b{
+    display:block;
+    font-size:19px; line-height:1; font-weight:900; font-variant-numeric:tabular-nums;
+  }
+  .stat span{
+    display:block; margin-top:4px;
+    font-size:9.5px; letter-spacing:.18em; font-weight:800; color:var(--faint); text-transform:uppercase;
+  }
+
+  /* ---------- Stage ---------- */
+  .stage{
+    position:relative;
+    border-radius:22px;
+    border:1px solid var(--line);
+    background:
+      radial-gradient(500px 300px at 50% 0%, rgba(46,230,255,.07), transparent 65%),
+      #080a18;
+    overflow:hidden;
+    box-shadow:0 18px 44px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.02);
+  }
+  canvas#game{
+    display:block;
+    width:100%;
+    aspect-ratio: 1 / 1.06;
+    touch-action:manipulation;
+    cursor:pointer;
+  }
+  .coach{
+    display:flex; gap:9px; align-items:flex-start;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:10px 12px;
+    min-height:58px;
+  }
+  .coach-dot{
+    flex:0 0 auto;
+    width:9px;height:9px;border-radius:50%;
+    background:var(--cyan);
+    margin-top:5px;
+    box-shadow:0 0 10px rgba(46,230,255,.8);
+  }
+  .coach p{margin:0; font-size:13.5px; line-height:1.5; color:#d6daff;}
+  .coach p b{color:var(--gold);}
+  .controls{
+    display:flex; gap:8px;
+  }
+  .btn{
+    appearance:none;
+    border:1px solid var(--line);
+    background:var(--panel);
+    color:var(--ink);
+    border-radius:13px;
+    padding:12px 14px;
+    font:inherit;
+    font-size:13px; font-weight:800; letter-spacing:.06em;
+    cursor:pointer;
+    flex:1;
+    transition:transform .08s ease, background .15s ease;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn.primary{
+    background:linear-gradient(180deg,#ffd97a,var(--gold-deep));
+    border-color:rgba(255,201,77,.6);
+    color:#231600;
+    box-shadow:0 8px 22px rgba(245,158,11,.28);
+  }
+  .btn.ghost{flex:0 0 auto;}
+
+  /* ---------- Overlays ---------- */
+  .overlay{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    text-align:center;
+    padding:18px 20px 20px;
+    background:rgba(5,6,16,.86);
+    backdrop-filter:blur(3px);
+    z-index:5;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
+  }
+  .overlay > *{flex:0 0 auto;}
+  .overlay .spacer{flex:1 1 auto; min-height:0;}
+  .overlay[hidden]{display:none;}
+  /* The start sheet gets the full screen: its demo + how-to + CTA are taller
+     than the square board, and the main button must never need hunting for. */
+  #startOverlay{
+    position:fixed;
+    background:rgba(5,6,16,.94);
+    z-index:60;
+  }
+  .overlay .kicker{
+    font-size:11px; letter-spacing:.34em; font-weight:800; color:var(--cyan); text-transform:uppercase;
+  }
+  .overlay h2{
+    margin:7px 0 0;
+    font-size:29px; line-height:1.02; font-weight:900; text-transform:uppercase; letter-spacing:.01em;
+  }
+  .overlay h2 .gold{color:var(--gold);}
+  .overlay p{
+    margin:10px 0 0;
+    font-size:14px; line-height:1.55; color:var(--muted);
+    max-width:38ch;
+  }
+  .overlay p b{color:var(--ink);}
+  canvas#demo{
+    width:176px; height:114px;
+    margin-top:11px;
+    border-radius:14px;
+    border:1px solid var(--line);
+    background:#07081a;
+  }
+  .demo-caption{
+    margin-top:7px !important;
+    font-size:11.5px !important;
+    letter-spacing:.08em;
+    color:var(--faint) !important;
+    font-weight:700;
+  }
+  .demo-caption b{color:var(--cyan) !important; font-variant-numeric:tabular-nums;}
+  .howto{
+    margin:11px 0 0; padding:0; list-style:none;
+    display:flex; flex-direction:column; gap:6px;
+    text-align:left;
+    max-width:340px; width:100%;
+  }
+  .howto li{
+    display:flex; gap:10px; align-items:flex-start;
+    font-size:12.5px; line-height:1.42; color:#ccd1f2;
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.06);
+    border-radius:11px;
+    padding:7px 10px;
+  }
+  .howto .n{
+    flex:0 0 auto;
+    width:21px;height:21px;border-radius:50%;
+    background:rgba(46,230,255,.16);
+    border:1px solid rgba(46,230,255,.45);
+    color:var(--cyan);
+    font-size:11px; font-weight:900;
+    display:grid; place-items:center;
+    margin-top:1px;
+  }
+  .big-btn{
+    margin-top:13px;
+    appearance:none; border:0; cursor:pointer;
+    font:inherit;
+    background:linear-gradient(180deg,#ffd97a,var(--gold-deep));
+    color:#231600;
+    font-size:16px; font-weight:900; letter-spacing:.1em; text-transform:uppercase;
+    padding:15px 34px;
+    border-radius:999px;
+    box-shadow:0 12px 28px rgba(245,158,11,.32);
+    transition:transform .08s ease;
+  }
+  .big-btn:active{transform:scale(.96);}
+  .big-btn.secondary{
+    background:var(--panel2);
+    color:var(--ink);
+    border:1px solid var(--line);
+    box-shadow:none;
+    font-size:13px;
+    padding:12px 22px;
+    margin-top:10px;
+  }
+  .result-stats{
+    display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; justify-content:center;
+  }
+  .result-stats .stat{min-width:86px;}
+  .flash-msg{
+    position:absolute; left:50%; top:14px; transform:translateX(-50%);
+    z-index:4;
+    background:rgba(10,12,28,.88);
+    border:1px solid rgba(255,201,77,.5);
+    color:var(--gold);
+    font-size:12px; font-weight:900; letter-spacing:.18em; text-transform:uppercase;
+    padding:7px 13px; border-radius:999px;
+    pointer-events:none;
+    opacity:0; transition:opacity .25s ease;
+    white-space:nowrap;
+  }
+  .flash-msg.show{opacity:1;}
+
+  footer{
+    text-align:center;
+    padding:4px 10px 14px;
+  }
+  footer a{
+    color:var(--muted);
+    font-size:12.5px;
+    line-height:1.5;
+    text-decoration:none;
+  }
+  footer a b{color:#c9ceef;}
+  footer a:hover{color:var(--cyan);}
+  .foot-brand{
+    display:block;
+    font-size:10px; letter-spacing:.3em; font-weight:800; color:var(--faint); text-transform:uppercase;
+    margin-bottom:4px;
+  }
+
+  @media (max-width:380px){
+    .title-block h1{font-size:25px;}
+    .sync-value{font-size:48px;}
+    .timer-value{font-size:26px;}
+    .stats{grid-template-columns:repeat(4,1fr); gap:6px;}
+    .stat b{font-size:16px;}
+    .overlay h2{font-size:28px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .timer-value.low{animation:none;}
+    .bar-fill,.hold-fill{transition:none;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="title-row">
+    <div class="title-block">
+      <h1>Metronome <span class="thin">Sync</span></h1>
+      <p>25 pendulums, 25 different beats. Conduct them into one.</p>
+    </div>
+    <button class="icon-btn" id="muteBtn" type="button" aria-label="Mute sound" title="Sound on / off">🔊</button>
+  </div>
+
+  <section class="hud" aria-label="Game status">
+    <div class="sync-top">
+      <div>
+        <div class="sync-label">Sync</div>
+        <div class="sync-value" id="syncValue">0<small>%</small></div>
+      </div>
+      <div class="timer-block">
+        <div class="timer-label">Time</div>
+        <div class="timer-value" id="timerValue">1:30</div>
+      </div>
+    </div>
+    <div class="bar" aria-hidden="true">
+      <div class="bar-fill" id="syncBar"></div>
+      <div class="bar-target"></div>
+    </div>
+    <div class="bar-caption">
+      <span>CHAOS</span>
+      <span id="syncNote">out of phase</span>
+      <span style="color:var(--gold); font-weight:800;">GOAL 99%</span>
+    </div>
+    <div class="hold-row" id="holdRow">
+      <span>Hold at 99%</span>
+      <div class="hold-track"><div class="hold-fill" id="holdFill"></div></div>
+      <span id="holdPct">0%</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="statRound">1</b><span>Round</span></div>
+      <div class="stat"><b id="statPulses">0</b><span>Pulses</span></div>
+      <div class="stat"><b id="statDrift">Calm</b><span>Drift</span></div>
+      <div class="stat"><b id="statScore">0</b><span>Score</span></div>
+    </div>
+  </section>
+
+  <div class="stage">
+    <canvas id="game" width="640" height="680" aria-label="Metronome Sync game board — tap an orb to pulse its neighbours into line"></canvas>
+    <div class="flash-msg" id="flashMsg">In sync!</div>
+
+    <!-- START -->
+    <div class="overlay" id="startOverlay">
+      <div class="spacer"></div>
+      <div class="kicker">A rhythm puzzle</div>
+      <h2>Bring them<br /><span class="gold">into one beat</span></h2>
+      <canvas id="demo" width="392" height="256" aria-hidden="true"></canvas>
+      <p class="demo-caption">DEMO — WATCH THEM FALL IN · SYNC <b id="demoSync">12%</b></p>
+      <ul class="howto">
+        <li><span class="n">1</span><span><b>Tap any orb.</b> It fires a pulse that pulls its neighbours onto its beat.</span></li>
+        <li><span class="n">2</span><span><b>Chain through glowing clusters</b> — pulsing an orb that's already in line spreads sync much further.</span></li>
+        <li><span class="n">3</span><span><b>Reach 99% sync and hold it for 2 seconds</b> before the clock runs out. The better you do, the harder they fight to drift apart — watch the Drift meter climb.</span></li>
+      </ul>
+      <button class="big-btn" id="startBtn" type="button">▶ &nbsp;Start conducting</button>
+      <p style="font-size:12px;">Starts easy — drift near zero, pulses at full strength. Every pulse that raises sync makes the drift push back harder. Slip 10 points and it eases off again.</p>
+      <div class="spacer"></div>
+    </div>
+
+    <!-- WIN -->
+    <div class="overlay" id="winOverlay" hidden>
+      <div class="spacer"></div>
+      <div class="kicker" style="color:var(--gold);">Perfect unison</div>
+      <h2>One beat.<br /><span class="gold">You did it.</span></h2>
+      <p id="winText">All 25 pendulums swinging as one.</p>
+      <div class="result-stats">
+        <div class="stat"><b id="winTime">0s</b><span>Time left</span></div>
+        <div class="stat"><b id="winPulses">0</b><span>Pulses</span></div>
+        <div class="stat"><b id="winScore">0</b><span>Score</span></div>
+      </div>
+      <button class="big-btn" id="nextBtn" type="button">Next round →</button>
+      <button class="big-btn secondary" id="winReplayBtn" type="button">Replay round</button>
+      <div class="spacer"></div>
+    </div>
+
+    <!-- LOSE -->
+    <div class="overlay" id="loseOverlay" hidden>
+      <div class="spacer"></div>
+      <div class="kicker" style="color:var(--pink);">Time's up</div>
+      <h2>So close to<br /><span class="gold">one beat</span></h2>
+      <p id="loseText">The pendulums drifted apart faster than you could pull them in.</p>
+      <div class="result-stats">
+        <div class="stat"><b id="loseSync">0%</b><span>Best sync</span></div>
+        <div class="stat"><b id="losePulses">0</b><span>Pulses</span></div>
+        <div class="stat"><b id="loseScore">0</b><span>Score</span></div>
+      </div>
+      <button class="big-btn" id="retryBtn" type="button">↻ &nbsp;Try again</button>
+      <button class="big-btn secondary" id="loseMenuBtn" type="button">Back to start</button>
+      <div class="spacer"></div>
+    </div>
+  </div>
+
+  <div class="coach" role="status" aria-live="polite">
+    <div class="coach-dot"></div>
+    <p id="coachText">Tap <b>Start conducting</b> — then tap any orb to fire your first sync pulse.</p>
+  </div>
+
+  <div class="controls">
+    <button class="btn ghost" id="restartBtn" type="button">↻ Restart round</button>
+    <button class="btn" id="soundBtn2" type="button">Sound: On</button>
+  </div>
+
+  <footer>
+    <span class="foot-brand">Play more · Work &amp; Money LA</span>
+    <a href="https://www.facebook.com/workandmoneyla" target="_blank" rel="noopener"><b>From Work &amp; Money Los Angeles</b> — real jobs &amp; money help daily</a>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ================= Config ================= */
+  var COLS = 5, ROWS = 5, N = COLS * ROWS;
+  var TWO_PI = Math.PI * 2;
+  var BASE_OMEGA = TWO_PI / 1.05;        // one beat ≈ every 1.05s
+  var GOAL = 0.99;
+  var HOLD_NEEDED = 2.0;                  // seconds at >= 99%
+  var COOLDOWN = 0.5;                     // seconds between pulses
+
+  // Base per-round values. The MAIN difficulty driver is now adaptive &
+  // in-round (see adaptiveLevel below): each round starts near-zero drift,
+  // and successful pulses notch the drift up. Later rounds only START a
+  // touch higher — the success-driven curve does the real work.
+  var ROUNDS = [
+    { time: 90, drift: 0.055, noise: 0.05, label: "Calm"   },
+    { time: 80, drift: 0.085, noise: 0.08, label: "Stirring" },
+    { time: 72, drift: 0.12,  noise: 0.11, label: "Restless" },
+    { time: 65, drift: 0.16,  noise: 0.15, label: "Wild"   },
+    { time: 58, drift: 0.21,  noise: 0.19, label: "Feral"  }
+  ];
+  function roundCfg(r){ return ROUNDS[Math.min(r - 1, ROUNDS.length - 1)]; }
+
+  /* ================= DOM ================= */
+  var canvas = document.getElementById('game');
+  var ctx = canvas.getContext('2d');
+  var demoCanvas = document.getElementById('demo');
+  var dctx = demoCanvas.getContext('2d');
+
+  var syncValueEl = document.getElementById('syncValue');
+  var syncBarEl = document.getElementById('syncBar');
+  var syncNoteEl = document.getElementById('syncNote');
+  var timerEl = document.getElementById('timerValue');
+  var holdRowEl = document.getElementById('holdRow');
+  var holdFillEl = document.getElementById('holdFill');
+  var holdPctEl = document.getElementById('holdPct');
+  var statRoundEl = document.getElementById('statRound');
+  var statPulsesEl = document.getElementById('statPulses');
+  var statDriftEl = document.getElementById('statDrift');
+  var statScoreEl = document.getElementById('statScore');
+  var coachEl = document.getElementById('coachText');
+  var flashEl = document.getElementById('flashMsg');
+  var demoSyncEl = document.getElementById('demoSync');
+
+  var startOverlay = document.getElementById('startOverlay');
+  var winOverlay = document.getElementById('winOverlay');
+  var loseOverlay = document.getElementById('loseOverlay');
+
+  /* ================= Audio (synthesised only) ================= */
+  var audioCtx = null;
+  var muted = false;
+  function ensureAudio(){
+    if (!audioCtx){
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ audioCtx = null; }
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+  function tickSound(strength, unified){
+    if (muted || !audioCtx) return;
+    var t = audioCtx.currentTime;
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = 'sine';
+    var f = unified ? 1560 : 1180 + Math.random() * 260;
+    osc.frequency.setValueAtTime(f, t);
+    osc.frequency.exponentialRampToValueAtTime(f * 0.55, t + 0.035);
+    var g = Math.min(0.22, 0.03 + strength * 0.05) * (unified ? 1.5 : 1);
+    gain.gain.setValueAtTime(g, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.06);
+  }
+  function pulseSound(){
+    if (muted || !audioCtx) return;
+    var t = audioCtx.currentTime;
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(340, t);
+    osc.frequency.exponentialRampToValueAtTime(880, t + 0.16);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.11, t + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.22);
+  }
+  function chordSwell(){
+    if (muted || !audioCtx) return;
+    var t = audioCtx.currentTime;
+    var freqs = [261.63, 329.63, 392.00, 523.25]; // C major
+    freqs.forEach(function(f, i){
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = f;
+      gain.gain.setValueAtTime(0.0001, t + i * 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.09, t + i * 0.06 + 0.35);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(t + i * 0.06); osc.stop(t + 1.7);
+    });
+  }
+  function sadTone(){
+    if (muted || !audioCtx) return;
+    var t = audioCtx.currentTime;
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(392, t);
+    osc.frequency.exponentialRampToValueAtTime(233, t + 0.5);
+    gain.gain.setValueAtTime(0.08, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.65);
+  }
+
+  /* ================= Helpers ================= */
+  function wrapAngle(a){
+    while (a > Math.PI) a -= TWO_PI;
+    while (a < -Math.PI) a += TWO_PI;
+    return a;
+  }
+  function fmtTime(s){
+    s = Math.max(0, Math.ceil(s));
+    var m = Math.floor(s / 60), ss = s % 60;
+    return m + ':' + (ss < 10 ? '0' : '') + ss;
+  }
+  var flashTimer = null;
+  function flash(msg){
+    flashEl.textContent = msg;
+    flashEl.classList.add('show');
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = setTimeout(function(){ flashEl.classList.remove('show'); }, 1400);
+  }
+
+  /* ================= Game state ================= */
+  var state = 'menu';            // menu | playing | won | lost
+  var orbs = [];
+  var round = 1;
+  var totalScore = 0;
+  var pulses = 0;
+  var timeLeft = 90;
+  var holdTime = 0;
+  var bestSync = 0;
+  var cooldownLeft = 0;
+  var lastTapped = -1;
+  var rings = [];                // expanding pulse visual rings {x,y,r,alpha,hue}
+  var elapsed = 0;
+  var chordPlayed = false;
+  var coachStage = 0;
+
+  /* ---- Adaptive in-round difficulty: easy → harder on correct play ---- */
+  var adaptiveLevel = 0;          // 0..12 — the live difficulty notch
+  var MAX_ADAPTIVE = 12;
+  var peakSync = 0;               // peak sync this stretch, for the ease-back rule
+  // Level 0 ≈ 0.10× base drift (near zero — first pulses visibly snap).
+  // Each notch adds ~0.21×; top end ≈ 2.6× base, genuinely threatening at 90%+.
+  function driftScale(){ return 0.10 + adaptiveLevel * 0.21; }
+  // Pulses start at FULL pull; pull only softens a little as level climbs.
+  function pullScale(){ return Math.max(0.78, 1 - adaptiveLevel * 0.018); }
+  function driftLabel(){
+    if (adaptiveLevel <= 1) return 'Calm';
+    if (adaptiveLevel <= 3) return 'Stirring';
+    if (adaptiveLevel <= 5) return 'Restless';
+    if (adaptiveLevel <= 7) return 'Wild';
+    if (adaptiveLevel <= 9) return 'Feral';
+    return 'Chaos';
+  }
+  function driftReadout(){ return driftLabel() + ' Lv' + adaptiveLevel; }
+
+  function makeOrbs(randomise){
+    orbs = [];
+    var cfg = roundCfg(round);
+    for (var i = 0; i < N; i++){
+      orbs.push({
+        col: i % COLS,
+        row: Math.floor(i / COLS),
+        theta: randomise ? Math.random() * TWO_PI : (i * 0.7) % TWO_PI,
+        freqOff: (Math.random() * 2 - 1) * cfg.drift,
+        wanderPhase: Math.random() * TWO_PI,
+        hue: 185 + Math.random() * 130,   // cyan → violet scatter while chaotic
+        x: 0, y: 0,                       // screen pos, set each frame
+        prevCycle: 0
+      });
+    }
+  }
+
+  function orderParameter(){
+    var re = 0, im = 0;
+    for (var i = 0; i < N; i++){ re += Math.cos(orbs[i].theta); im += Math.sin(orbs[i].theta); }
+    re /= N; im /= N;
+    return { r: Math.sqrt(re * re + im * im), psi: Math.atan2(im, re) };
+  }
+  function localCoherence(idx){
+    var o = orbs[idx], re = 0, im = 0, count = 0;
+    for (var i = 0; i < N; i++){
+      var d = Math.hypot(orbs[i].col - o.col, orbs[i].row - o.row);
+      if (d <= 1.5){ re += Math.cos(orbs[i].theta); im += Math.sin(orbs[i].theta); count++; }
+    }
+    if (!count) return 0;
+    re /= count; im /= count;
+    return Math.sqrt(re * re + im * im);
+  }
+
+  /* ------- The sync pulse: one-shot Kuramoto coupling ------- */
+  function firePulse(idx){
+    var syncBefore = orderParameter().r;
+    var src = orbs[idx];
+    var srcTheta = src.theta;
+    var chain = localCoherence(idx);              // pulsing an aligned cluster spreads further
+    var chainBoost = 1 + Math.max(0, chain - 0.55) * 0.9;  // up to ~+40%
+    var pull = pullScale();                       // 1.0 at Lv0 (full snap), ~0.78 at top level
+    for (var i = 0; i < N; i++){
+      if (i === idx) continue;
+      var o = orbs[i];
+      var dist = Math.hypot(o.col - src.col, o.row - src.row);
+      var strength;
+      if (dist <= 1.5) strength = 0.92;           // nearest neighbours (incl. diagonals)
+      else if (dist <= 2.25) strength = 0.55;     // second ring
+      else strength = 0.14;                        // faint echo across the board — the conductor's reach
+      strength = Math.min(1, strength * chainBoost * pull);
+      var delta = wrapAngle(srcTheta - o.theta);
+      // Kuramoto-style pull: proportional to sin of the phase gap
+      o.theta += Math.sin(delta) * strength * (Math.abs(delta) > 0.9 ? 1 : 0.92) + delta * strength * 0.22;
+      o.theta = ((o.theta % TWO_PI) + TWO_PI) % TWO_PI;
+    }
+    pulses++;
+    cooldownLeft = COOLDOWN;
+    lastTapped = idx;
+    rings.push({ x: src.x, y: src.y, r: 10, alpha: 0.9, chain: chain });
+    if (rings.length > 6) rings.shift();
+    pulseSound();
+    // Adaptive step-up: a pulse that RAISES sync makes the game push back.
+    var syncAfter = orderParameter().r;
+    if (syncAfter > syncBefore + 0.005 && adaptiveLevel < MAX_ADAPTIVE){
+      adaptiveLevel++;
+    }
+    // Band floor: guarantee the high-sync band is genuinely threatening
+    // even on a very efficient run — 70%+ → Lv5, 85%+ → Lv7, 92%+ → Lv9.
+    var bandFloor = syncAfter >= 0.92 ? 9 : syncAfter >= 0.85 ? 7 : syncAfter >= 0.70 ? 5 : syncAfter >= 0.50 ? 3 : 0;
+    if (bandFloor > adaptiveLevel) adaptiveLevel = bandFloor;
+    if (syncAfter > peakSync) peakSync = syncAfter;
+    updateStats();
+    if (round === 1 && coachStage === 0){
+      coachStage = 1;
+      setCoach('That\'s it — see the neighbours snap toward its beat? Now <b>tap an orb inside a glowing cluster</b> to spread the sync further. Good pulses notch the <b>Drift</b> meter up — that\'s the game pushing back.');
+    }
+  }
+
+  /* ================= Coaching ================= */
+  function setCoach(html){ coachEl.innerHTML = html; }
+  function contextualCoach(r){
+    if (state !== 'playing') return;
+    if (round === 1 && elapsed < 6 && coachStage === 0){
+      setCoach('Tap an orb to pulse its neighbours into line. <b>Middle orbs are gold</b> — they touch the most neighbours.');
+      return;
+    }
+    if (r >= GOAL){
+      setCoach('<b>HOLD IT!</b> Drift is at <b>' + driftReadout() + '</b> and fighting hard — tiny nudges on any orb that starts to wander.');
+    } else if (r >= 0.9){
+      setCoach('So close — and drift is now <b>' + driftReadout() + '</b>. Hunt the <b>one or two orbs flashing off-beat</b> and tap right on them.');
+    } else if (r >= 0.7){
+      setCoach('The beat is forming. <b>Chain through the bright cluster</b> — don\'t waste pulses on lone orbs.');
+    } else if (r >= 0.45){
+      setCoach('Halfway there. Work the <b>edge of the synced patch</b> and grow it outward.');
+    } else if (coachStage >= 1 && r < 0.45){
+      setCoach('Build one patch first: tap <b>neighbours of orbs that already flash together</b>.');
+    }
+  }
+
+  /* ================= Flow ================= */
+  function startRound(r){
+    round = r;
+    var cfg = roundCfg(round);
+    makeOrbs(true);
+    pulses = 0;
+    timeLeft = cfg.time;
+    holdTime = 0;
+    bestSync = 0;
+    peakSync = 0;
+    // Start EASY every round: Lv0 on Round 1; later rounds start only
+    // slightly higher (+1 per round) — the in-round curve is the driver.
+    adaptiveLevel = Math.min(3, Math.max(0, round - 1));
+    cooldownLeft = 0;
+    lastTapped = -1;
+    rings = [];
+    elapsed = 0;
+    chordPlayed = false;
+    coachStage = 0;
+    state = 'playing';
+    startOverlay.hidden = true;
+    winOverlay.hidden = true;
+    loseOverlay.hidden = true;
+    if (round === 1){
+      setCoach('Easy start: drift is near zero and pulses hit at <b>full strength</b>. Tap an orb — <b>middle orbs touch the most neighbours</b> — and watch them snap in. Every good pulse notches the Drift up.');
+    } else {
+      setCoach('Round ' + round + ' — starts at <b>Drift Lv' + adaptiveLevel + '</b> with a shorter clock, and still climbs on every good pulse. Same goal: <b>99%, held for 2 seconds</b>.');
+    }
+    updateStats();
+    updateHUD(0);
+  }
+  function winRound(){
+    state = 'won';
+    var cfg = roundCfg(round);
+    var timeBonus = Math.round(timeLeft) * 10;
+    var pulseBonus = Math.max(0, 34 - pulses) * 25;
+    var roundScore = timeBonus + pulseBonus + 500;
+    totalScore += roundScore;
+    document.getElementById('winTime').textContent = Math.ceil(timeLeft) + 's';
+    document.getElementById('winPulses').textContent = pulses;
+    document.getElementById('winScore').textContent = totalScore.toLocaleString();
+    document.getElementById('winText').innerHTML =
+      'All 25 pendulums swinging as one — with <b>' + Math.ceil(timeLeft) + ' seconds</b> to spare and <b>' +
+      pulses + ' pulses</b>. You finished at <b>Drift ' + driftReadout() + '</b>. Speed bonus +' + timeBonus + ', light-touch bonus +' + pulseBonus + '.<br />Round ' +
+      (round + 1) + ' starts a notch higher (Lv' + Math.min(3, round) + '), ' + roundCfg(round + 1).time + ' seconds — and still climbs on every good pulse.';
+    winOverlay.hidden = false;
+    chordSwell();
+    updateStats();
+  }
+  function loseRound(){
+    state = 'lost';
+    document.getElementById('loseSync').textContent = Math.round(bestSync * 100) + '%';
+    document.getElementById('losePulses').textContent = pulses;
+    document.getElementById('loseScore').textContent = totalScore.toLocaleString();
+    document.getElementById('loseText').innerHTML =
+      'You peaked at <b>' + Math.round(bestSync * 100) + '% sync</b>. Tip: grow one patch from the middle, chain along its edge, and save your last pulses for the single orb flashing off-beat.';
+    loseOverlay.hidden = false;
+    sadTone();
+  }
+  function toMenu(){
+    state = 'menu';
+    round = 1;
+    totalScore = 0;
+    adaptiveLevel = 0;
+    peakSync = 0;
+    makeOrbs(true);
+    winOverlay.hidden = true;
+    loseOverlay.hidden = true;
+    startOverlay.hidden = false;
+    setCoach('Tap <b>Start conducting</b> — then tap any orb to fire your first sync pulse.');
+    updateStats();
+  }
+
+  function updateStats(){
+    statRoundEl.textContent = round;
+    statPulsesEl.textContent = pulses;
+    statDriftEl.textContent = driftReadout();
+    statScoreEl.textContent = totalScore.toLocaleString();
+  }
+  function updateHUD(r){
+    var pct = Math.round(r * 100);
+    syncValueEl.innerHTML = pct + '<small>%</small>';
+    syncValueEl.classList.toggle('hot', r >= 0.9);
+    syncValueEl.classList.toggle('warm', r >= 0.6 && r < 0.9);
+    syncBarEl.style.width = (r * 100).toFixed(1) + '%';
+    syncNoteEl.textContent =
+      r >= GOAL ? 'IN UNISON — HOLD!' :
+      r >= 0.9 ? 'nearly one beat' :
+      r >= 0.7 ? 'a beat is forming' :
+      r >= 0.45 ? 'patches of sync' :
+      r >= 0.25 ? 'loosely scattered' : 'out of phase';
+    timerEl.textContent = fmtTime(timeLeft);
+    timerEl.classList.toggle('low', state === 'playing' && timeLeft <= 10);
+    var holdPct = Math.round((holdTime / HOLD_NEEDED) * 100);
+    holdFillEl.style.width = holdPct + '%';
+    holdPctEl.textContent = holdPct + '%';
+    holdRowEl.classList.toggle('armed', r >= GOAL);
+    // Live drift readout — player sees the push-back as they improve.
+    var liveDrift = driftReadout();
+    if (statDriftEl.textContent !== liveDrift) statDriftEl.textContent = liveDrift;
+  }
+
+  /* ================= Update ================= */
+  function update(dt){
+    if (state !== 'playing') return;
+    elapsed += dt;
+    timeLeft -= dt;
+    cooldownLeft = Math.max(0, cooldownLeft - dt);
+    var cfg = roundCfg(round);
+    var scale = driftScale();   // near-zero at Lv0 → >2.5× base at top level
+    var beats = 0;
+    for (var i = 0; i < N; i++){
+      var o = orbs[i];
+      // Drift scales LIVE with adaptiveLevel: personal offset + wander + noise.
+      var wander = Math.sin(elapsed * 0.35 + o.wanderPhase) * cfg.noise * 0.35 * scale;
+      o.theta += (BASE_OMEGA + o.freqOff * scale + wander) * dt;
+      o.theta += (Math.random() - 0.5) * cfg.noise * dt * 0.6 * scale;
+      if (o.theta >= TWO_PI){
+        o.theta -= TWO_PI;
+        beats++;
+      }
+      o.theta = ((o.theta % TWO_PI) + TWO_PI) % TWO_PI;
+    }
+    // Sound: scattered ticks while chaotic; one fat unified tick as they merge.
+    if (beats > 0 && audioCtx && !muted){
+      var op = orderParameter();
+      tickSound(beats, op.r > 0.75);
+    }
+    var op2 = orderParameter();
+    var r = op2.r;
+    if (r > bestSync) bestSync = r;
+    if (r > peakSync) peakSync = r;
+    // Ease-back: a meaningful fall (10+ points from peak) drops the
+    // difficulty two notches — struggling makes it kinder, no death spiral.
+    if (peakSync - r >= 0.10 && adaptiveLevel > 0){
+      adaptiveLevel = Math.max(0, adaptiveLevel - 2);
+      peakSync = r;
+    }
+    if (r >= GOAL){
+      holdTime += dt;
+      if (!chordPlayed){ chordPlayed = true; chordSwell(); flash('In sync — hold it!'); }
+      if (holdTime >= HOLD_NEEDED){ updateHUD(r); winRound(); return; }
+    } else {
+      holdTime = Math.max(0, holdTime - dt * 2.2);
+      if (r < 0.93) chordPlayed = false;
+    }
+    updateHUD(r);
+    contextualCoach(r);
+    if (timeLeft <= 0){
+      timeLeft = 0;
+      updateHUD(r);
+      loseRound();
+    }
+  }
+
+  /* ================= Render ================= */
+  function render(now){
+    var W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    // backdrop: faint beat rings from the top pivot line
+    ctx.strokeStyle = 'rgba(120,140,255,.05)';
+    ctx.lineWidth = 1;
+    for (var k = 1; k <= 4; k++){
+      ctx.beginPath(); ctx.arc(W / 2, -40, k * 130, 0, TWO_PI); ctx.stroke();
+    }
+
+    var op = orderParameter();
+    var r = op.r;
+    var padX = W * 0.10, padTop = H * 0.13;
+    var cellW = (W - padX * 2) / (COLS - 1);
+    var cellH = (H - padTop - H * 0.07) / (ROWS - 1);
+    var orbR = Math.min(cellW, cellH) * 0.30;
+    var coolFrac = 1 - (cooldownLeft / COOLDOWN);
+
+    for (var i = 0; i < N; i++){
+      var o = orbs[i];
+      var cx = padX + o.col * cellW;
+      var cy = padTop + o.row * cellH;
+      var swingX = Math.sin(o.theta) * orbR * 0.85;
+      o.cx = cx; o.cy = cy;
+      o.x = cx + swingX;
+      o.y = cy + Math.abs(Math.cos(o.theta)) * orbR * 0.12;
+      // colour: scattered hues while chaotic → converges to cyan as global sync rises
+      var hue = o.hue * (1 - r) + 190 * r + (r >= GOAL ? 18 * r : 0);
+      // stash hue for draw via temp property
+      o._hue = hue;
+    }
+    for (var j = 0; j < N; j++){
+      var ob = orbs[j];
+      // per-orb local coherence brightens orbs already in a synced patch
+      var lc = state === 'menu' ? r : localCoherence(j);
+      // reuse drawOrb but with per-orb hue: draw manually here for hue control
+      drawOrbColoured(ob, orbR, r, lc, j === lastTapped, coolFrac);
+    }
+
+    // pulse rings
+    for (var q = rings.length - 1; q >= 0; q--){
+      var ring = rings[q];
+      ring.r += 190 * 0.016;
+      ring.alpha -= 0.028;
+      if (ring.alpha <= 0){ rings.splice(q, 1); continue; }
+      ctx.strokeStyle = ring.chain > 0.75
+        ? 'rgba(255,201,77,' + ring.alpha + ')'
+        : 'rgba(46,230,255,' + ring.alpha + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(ring.x, ring.y, ring.r, 0, TWO_PI); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,' + (ring.alpha * 0.4) + ')';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(ring.x, ring.y, ring.r * 0.72, 0, TWO_PI); ctx.stroke();
+    }
+
+    // unified beat halo at high sync
+    if (r > 0.85){
+      var halo = Math.pow(Math.max(0, Math.cos(op.psi)), 6) * (r - 0.85) * 2.2;
+      if (halo > 0.02){
+        var hg = ctx.createRadialGradient(W/2, H/2, 40, W/2, H/2, W * 0.62);
+        hg.addColorStop(0, 'rgba(255,201,77,' + (halo * 0.13) + ')');
+        hg.addColorStop(1, 'rgba(255,201,77,0)');
+        ctx.fillStyle = hg;
+        ctx.fillRect(0, 0, W, H);
+      }
+    }
+
+    // tap hint ring on a centre orb early in round 1
+    if (state === 'playing' && round === 1 && pulses === 0){
+      var c = orbs[12];
+      var pr = orbR + 10 + Math.sin(now * 0.006) * 3;
+      ctx.strokeStyle = 'rgba(255,201,77,.8)';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath(); ctx.arc(c.x, c.y, pr, 0, TWO_PI); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,201,77,.95)';
+      ctx.font = '700 17px "Avenir Next","Segoe UI",sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('TAP', c.x, c.y - pr - 10);
+    }
+  }
+
+  function drawOrbColoured(o, radius, globalR, localC, isTapped, coolFrac){
+    var g = ctx;
+    var x = o.x, y = o.y, theta = o.theta;
+    var pivotX = (o.cx != null ? o.cx : x);
+    var pivotY = (o.cy != null ? o.cy : y) - radius * 1.9;
+    // pendulum arm: fixed pivot above the orb's rest position, rod down to the bob
+    g.strokeStyle = 'rgba(160,175,255,.34)';
+    g.lineWidth = 2;
+    g.beginPath(); g.moveTo(pivotX, pivotY); g.lineTo(x, y); g.stroke();
+    g.fillStyle = 'rgba(200,210,255,.55)';
+    g.beginPath(); g.arc(pivotX, pivotY, 2.4, 0, TWO_PI); g.fill();
+
+    var flashAmt = Math.pow(Math.max(0, Math.cos(theta)), 10);
+    var glowR = radius * (2.0 + flashAmt * 1.05 + localC * 0.55);
+    var grad = g.createRadialGradient(x, y, 0, x, y, glowR);
+    var colA = isTapped ? 'rgba(255,201,77,' : 'rgba(46,230,255,';
+    grad.addColorStop(0, colA + (0.26 + flashAmt * 0.34 + localC * 0.16) + ')');
+    grad.addColorStop(1, colA + '0)');
+    g.fillStyle = grad;
+    g.beginPath(); g.arc(x, y, glowR, 0, TWO_PI); g.fill();
+
+    var hue = o._hue || 190;
+    var light = 50 + flashAmt * 22 + localC * 9;
+    var body = g.createRadialGradient(x - radius * 0.38, y - radius * 0.42, radius * 0.12, x, y, radius);
+    body.addColorStop(0, 'hsl(' + hue + ', 95%, ' + Math.min(88, light + 27) + '%)');
+    body.addColorStop(0.55, 'hsl(' + hue + ', 88%, ' + light + '%)');
+    body.addColorStop(1, 'hsl(' + (hue + 26) + ', 78%, ' + Math.max(23, light - 25) + '%)');
+    g.fillStyle = body;
+    g.beginPath(); g.arc(x, y, radius, 0, TWO_PI); g.fill();
+    g.strokeStyle = localC > 0.8 ? 'rgba(255,233,170,.75)' : 'rgba(255,255,255,.26)';
+    g.lineWidth = localC > 0.8 ? 1.6 : 1;
+    g.stroke();
+
+    g.fillStyle = 'rgba(255,255,255,' + (0.5 + flashAmt * 0.32) + ')';
+    g.beginPath();
+    g.ellipse(x - radius * 0.36, y - radius * 0.44, radius * 0.30, radius * 0.17, -0.6, 0, TWO_PI);
+    g.fill();
+
+    if (isTapped){
+      g.strokeStyle = 'rgba(255,201,77,.6)';
+      g.lineWidth = 2;
+      g.beginPath(); g.arc(x, y, radius + 3, 0, TWO_PI); g.stroke();
+      if (coolFrac < 1){
+        g.strokeStyle = 'rgba(255,201,77,.95)';
+        g.lineWidth = 3;
+        g.beginPath();
+        g.arc(x, y, radius + 7, -Math.PI / 2, -Math.PI / 2 + TWO_PI * coolFrac);
+        g.stroke();
+      }
+    }
+  }
+
+  /* ================= Demo (start screen) ================= */
+  var demoOrbs = [];
+  (function initDemo(){
+    for (var i = 0; i < 9; i++){
+      demoOrbs.push({ theta: Math.random() * TWO_PI, start: Math.random() * TWO_PI, hue: 200 + Math.random() * 90 });
+    }
+  })();
+  function renderDemo(now){
+    if (startOverlay.hidden) return;
+    var W = demoCanvas.width, H = demoCanvas.height;
+    dctx.clearRect(0, 0, W, H);
+    var cycle = (now % 5200) / 5200;                 // 5.2s loop
+    var converge = cycle < 0.62 ? (cycle / 0.62) : 1; // fall in over ~3.2s, hold, reset
+    var ease = converge * converge * (3 - 2 * converge);
+    var shared = now * 0.0042;
+    var re = 0, im = 0;
+    var pos = [];
+    for (var i = 0; i < demoOrbs.length; i++){
+      var d = demoOrbs[i];
+      var th = shared + d.start * (1 - ease) + Math.sin(now * 0.001 + i) * 0.05 * (1 - ease);
+      var cx = 44 + (i % 3) * 152, cy = 52 + Math.floor(i / 3) * 76;
+      var x = cx + Math.sin(th) * 20, y = cy + 14;
+      pos.push({ x: x, y: y, th: th, hue: d.hue * (1 - ease) + 190 * ease });
+      re += Math.cos(th); im += Math.sin(th);
+    }
+    var r = Math.sqrt(re * re + im * im) / demoOrbs.length;
+    demoSyncEl.textContent = Math.round(r * 100) + '%';
+    demoSyncEl.style.color = r > 0.95 ? 'var(--gold)' : '';
+    pos.forEach(function(p){
+      var flashAmt = Math.pow(Math.max(0, Math.cos(p.th)), 8);
+      var grad = dctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 34);
+      grad.addColorStop(0, 'rgba(46,230,255,' + (0.25 + flashAmt * 0.3) + ')');
+      grad.addColorStop(1, 'rgba(46,230,255,0)');
+      dctx.fillStyle = grad;
+      dctx.beginPath(); dctx.arc(p.x, p.y, 34, 0, TWO_PI); dctx.fill();
+      dctx.strokeStyle = 'rgba(160,175,255,.35)';
+      dctx.lineWidth = 1.6;
+      dctx.beginPath(); dctx.moveTo(p.x - Math.sin(p.th) * 20, p.y - 30); dctx.lineTo(p.x, p.y); dctx.stroke();
+      var body = dctx.createRadialGradient(p.x - 5, p.y - 6, 2, p.x, p.y, 15);
+      body.addColorStop(0, 'hsl(' + p.hue + ',95%,82%)');
+      body.addColorStop(0.55, 'hsl(' + p.hue + ',88%,' + (52 + flashAmt * 20) + '%)');
+      body.addColorStop(1, 'hsl(' + (p.hue + 26) + ',78%,30%)');
+      dctx.fillStyle = body;
+      dctx.beginPath(); dctx.arc(p.x, p.y, 15, 0, TWO_PI); dctx.fill();
+      dctx.fillStyle = 'rgba(255,255,255,.65)';
+      dctx.beginPath(); dctx.ellipse(p.x - 5, p.y - 6, 4.5, 2.6, -0.6, 0, TWO_PI); dctx.fill();
+    });
+  }
+
+  /* ================= Main loop ================= */
+  var lastTs = 0;
+  function loop(ts){
+    if (!lastTs) lastTs = ts;
+    var dt = Math.min(0.05, (ts - lastTs) / 1000);
+    lastTs = ts;
+    if (state === 'playing') update(dt);
+    else {
+      // menu / end screens: orbs keep idly swinging behind the overlay
+      for (var i = 0; i < N; i++){
+        orbs[i].theta += BASE_OMEGA * dt * 0.55;
+        if (orbs[i].theta >= TWO_PI) orbs[i].theta -= TWO_PI;
+      }
+      if (state === 'menu') updateHUD(orderParameter().r);
+    }
+    // advance pulse rings in real time even on end screens
+    render(ts);
+    renderDemo(ts);
+    requestAnimationFrame(loop);
+  }
+
+  /* ================= Input ================= */
+  function canvasPos(evt){
+    var rect = canvas.getBoundingClientRect();
+    var cx = (evt.touches && evt.touches[0]) ? evt.touches[0].clientX : evt.clientX;
+    var cy = (evt.touches && evt.touches[0]) ? evt.touches[0].clientY : evt.clientY;
+    return {
+      x: (cx - rect.left) * (canvas.width / rect.width),
+      y: (cy - rect.top) * (canvas.height / rect.height)
+    };
+  }
+  function handleTap(evt){
+    if (state !== 'playing') return;
+    evt.preventDefault();
+    ensureAudio();
+    if (cooldownLeft > 0) return;
+    var p = canvasPos(evt);
+    var best = -1, bestD = 1e9;
+    for (var i = 0; i < N; i++){
+      var d = Math.hypot(orbs[i].x - p.x, orbs[i].y - p.y);
+      if (d < bestD){ bestD = d; best = i; }
+    }
+    var tapRadius = 90; // generous tap target in canvas units — nearest orb within reach fires
+    if (best >= 0 && bestD <= tapRadius) firePulse(best);
+  }
+  canvas.addEventListener('pointerdown', handleTap);
+  canvas.addEventListener('touchstart', function(e){ e.preventDefault(); }, { passive: false });
+
+  /* ================= Buttons ================= */
+  document.getElementById('startBtn').addEventListener('click', function(){
+    ensureAudio();
+    totalScore = 0;
+    startRound(1);
+    flash('Round 1 — conduct!');
+  });
+  document.getElementById('nextBtn').addEventListener('click', function(){
+    ensureAudio();
+    startRound(round + 1);
+    flash('Round ' + round + ' — drift up');
+  });
+  document.getElementById('winReplayBtn').addEventListener('click', function(){
+    ensureAudio();
+    startRound(round);
+  });
+  document.getElementById('retryBtn').addEventListener('click', function(){
+    ensureAudio();
+    startRound(round);
+  });
+  document.getElementById('loseMenuBtn').addEventListener('click', toMenu);
+  document.getElementById('restartBtn').addEventListener('click', function(){
+    if (state === 'menu') return;
+    ensureAudio();
+    startRound(round);
+  });
+
+  var muteBtn = document.getElementById('muteBtn');
+  var soundBtn2 = document.getElementById('soundBtn2');
+  function setMuted(m){
+    muted = m;
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+    muteBtn.setAttribute('aria-label', muted ? 'Unmute sound' : 'Mute sound');
+    soundBtn2.textContent = muted ? 'Sound: Off' : 'Sound: On';
+  }
+  muteBtn.addEventListener('click', function(){ ensureAudio(); setMuted(!muted); });
+  soundBtn2.addEventListener('click', function(){ ensureAudio(); setMuted(!muted); });
+
+  document.addEventListener('visibilitychange', function(){ lastTs = 0; });
+
+  /* ================= Boot ================= */
+  makeOrbs(true);
+  updateStats();
+  updateHUD(0);
+  requestAnimationFrame(loop);
+})();
+</script>
+<script>
+  /* WAM play counters (Abacus, keyless) - fire-and-forget; the game plays
+     identically if the counter service is unreachable. Each key fires at
+     most once per page load. No visible UI. */
+  (function () {
+    var NS = "https://abacus.jasoncameron.dev/hit/wam-games/";
+    var fired = {};
+    function hit(key) {
+      if (fired[key]) return;
+      fired[key] = true;
+      try {
+        fetch(NS + key, { mode: "no-cors", keepalive: true }).catch(function () {});
+      } catch (e) { /* counter is optional; never break the game */ }
+    }
+    hit("metronome-sync-open");
+    (function () {
+      var el = document.getElementById("startBtn");
+      if (el) el.addEventListener("click", function () { hit("metronome-sync-play"); });
+    })();
+    (function () {
+      var el = document.getElementById("game");
+      if (el) el.addEventListener("pointerdown", function () { hit("metronome-sync-play"); });
+    })();
+    (function () {
+      var el = document.getElementById("winOverlay");
+      if (el && window.MutationObserver) {
+        var obs = new MutationObserver(function () {
+          if (!el.hidden) hit("metronome-sync-finish");
+        });
+        obs.observe(el, { attributes: true, attributeFilter: ["hidden"] });
+      }
+    })();
+    (function () {
+      var el = document.getElementById("loseOverlay");
+      if (el && window.MutationObserver) {
+        var obs = new MutationObserver(function () {
+          if (!el.hidden) hit("metronome-sync-finish");
+        });
+        obs.observe(el, { attributes: true, attributeFilter: ["hidden"] });
+      }
+    })();
+  })();
+</script>
+</body>
+</html>
