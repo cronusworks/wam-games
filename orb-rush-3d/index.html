@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>🔮 Orb Rush 3D</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #070818; }
+  body { font-family: system-ui, sans-serif; color: #eef1ff; }
+  #game { position: fixed; inset: 0; touch-action: none; }
+  canvas { display: block; }
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0; padding: 12px 16px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    pointer-events: none; z-index: 5;
+    font-weight: 700; text-shadow: 0 2px 8px rgba(0,0,0,.7);
+  }
+  #hud .big { font-size: 26px; }
+  #hud .lbl { font-size: 11px; letter-spacing: .12em; color: #aab; font-weight: 600; }
+  #hud .right { text-align: right; }
+  .overlay {
+    position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; padding: 24px;
+    background: rgba(5, 6, 20, .72);
+  }
+  .overlay[hidden] { display: none; }
+  .overlay h1 { font-size: 40px; margin-bottom: 6px; }
+  .overlay h2 { font-size: 32px; margin-bottom: 6px; }
+  .overlay p { color: #c6cbee; max-width: 420px; line-height: 1.45; margin-bottom: 10px; }
+  .overlay .score { font-size: 20px; color: #ffd23d; font-weight: 700; margin-bottom: 4px; }
+  .overlay .best { font-size: 14px; color: #aab; margin-bottom: 14px; }
+  button.play {
+    pointer-events: auto; border: 0; cursor: pointer; margin-top: 10px;
+    background: #ffd23d; color: #191200; font-weight: 800; font-size: 20px;
+    padding: 14px 42px; border-radius: 999px;
+  }
+  button.play:active { transform: scale(.97); }
+  #footer {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 5; text-align: center;
+    padding: 8px 10px; font-size: 12.5px; color: #99a; pointer-events: none;
+    background: linear-gradient(transparent, rgba(0,0,0,.55));
+  }
+  #footer a { color: #ffd23d; pointer-events: auto; text-decoration: none; font-weight: 700; }
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud">
+  <div>
+    <div class="lbl">DISTANCE</div>
+    <div class="big"><span id="dist">0</span>m</div>
+  </div>
+  <div class="right">
+    <div class="lbl">COINS</div>
+    <div class="big">🪙 <span id="coins">0</span></div>
+  </div>
+</div>
+
+<div class="overlay" id="startOverlay">
+  <h1>🔮 ORB RUSH 3D</h1>
+  <p>Your orb is rolling downhill and it will <b>not</b> slow down.<br/>
+     Steer to dodge the crates. Grab the coins. How far can you get?</p>
+  <p>🖱️ Drag, 👆 swipe, or use ◀ ▶ / A D to steer.</p>
+  <button class="play" id="playBtn">▶ PLAY</button>
+</div>
+
+<div class="overlay" id="endOverlay" hidden>
+  <h2>💥 CRASHED!</h2>
+  <div class="score" id="finalScore"></div>
+  <div class="best" id="bestScore"></div>
+  <button class="play" id="againBtn">↻ ROLL AGAIN</button>
+</div>
+
+<div id="footer">
+  From <a href="https://www.facebook.com/workandmoneyla" target="_blank" rel="noopener">Work &amp; Money Los Angeles</a> — real jobs &amp; money help daily
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ---------- tiny synth sounds (WebAudio, no files) ---------- */
+let AC = null;
+function ac() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (AC && AC.state === 'suspended') AC.resume(); return AC; }
+function blip(f0, f1, dur, type, vol) {
+  const a = ac(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type || 'sine'; o.frequency.setValueAtTime(f0, a.currentTime);
+  o.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), a.currentTime + dur);
+  g.gain.setValueAtTime(vol || .16, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001, a.currentTime + dur);
+  o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + dur);
+}
+const sndCoin  = () => { blip(1250, 1900, .09, 'sine', .14); setTimeout(() => blip(1900, 2400, .08, 'sine', .10), 55); };
+const sndCrash = () => { blip(160, 40, .35, 'sawtooth', .22); };
+const sndClick = () => blip(700, 900, .06, 'triangle', .12);
+
+/* ---------- scene ---------- */
+const container = document.getElementById('game');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b1030);
+scene.fog = new THREE.Fog(0x0b1030, 30, 95);
+
+const camera = new THREE.PerspectiveCamera(66, innerWidth / innerHeight, 0.1, 220);
+camera.position.set(0, 5.2, 8.2);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xbcd0ff, 0x1a1430, 0.95));
+const sun = new THREE.DirectionalLight(0xfff2d8, 1.6);
+sun.position.set(6, 14, 4);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -12; sun.shadow.camera.right = 12;
+sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -20;
+scene.add(sun);
+
+/* ---------- track ---------- */
+const TRACK_W = 10, HALF = TRACK_W / 2;
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x232350, roughness: .95 });
+const segments = [];
+const SEG_LEN = 20, SEG_N = 7;
+for (let i = 0; i < SEG_N; i++) {
+  const g = new THREE.Group();
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W, SEG_LEN), groundMat);
+  plane.rotation.x = -Math.PI / 2; plane.receiveShadow = true; g.add(plane);
+  const railGeo = new THREE.BoxGeometry(0.28, 0.28, SEG_LEN);
+  const railMat = new THREE.MeshStandardMaterial({ color: 0x111133, emissive: 0x3555ff, emissiveIntensity: .9 });
+  const l = new THREE.Mesh(railGeo, railMat); l.position.set(-HALF - .2, .14, 0); g.add(l);
+  const r = new THREE.Mesh(railGeo, railMat); r.position.set(HALF + .2, .14, 0); g.add(r);
+  const dashGeo = new THREE.PlaneGeometry(0.18, 2.2);
+  const dashMat = new THREE.MeshBasicMaterial({ color: 0x8f9bff });
+  for (let d = -SEG_LEN / 2 + 2; d < SEG_LEN / 2; d += 5) {
+    const dash = new THREE.Mesh(dashGeo, dashMat);
+    dash.rotation.x = -Math.PI / 2; dash.position.set(0, .02, d); g.add(dash);
+  }
+  g.position.z = -i * SEG_LEN + 10;
+  scene.add(g); segments.push(g);
+}
+
+/* distant glow pillars for speed feel */
+const pillars = [];
+const pilGeo = new THREE.BoxGeometry(0.5, 9, 0.5);
+const pilMats = [0xff5577, 0x33ccff, 0xffcc33, 0x77ff99].map(c =>
+  new THREE.MeshStandardMaterial({ color: 0x111122, emissive: c, emissiveIntensity: 1.4 }));
+for (let i = 0; i < 16; i++) {
+  const p = new THREE.Mesh(pilGeo, pilMats[i % 4]);
+  const side = i % 2 === 0 ? -1 : 1;
+  p.position.set(side * (8 + Math.random() * 5), 4.5, -i * 11 - Math.random() * 5);
+  scene.add(p); pillars.push(p);
+}
+
+/* ---------- ball ---------- */
+const ball = new THREE.Mesh(
+  new THREE.SphereGeometry(0.55, 28, 22),
+  new THREE.MeshStandardMaterial({ color: 0xb46bff, roughness: .25, metalness: .35, emissive: 0x3d1470, emissiveIntensity: .6 })
+);
+ball.castShadow = true; ball.position.set(0, 0.55, 0);
+scene.add(ball);
+
+/* ---------- obstacles & coins ---------- */
+const crateGeo = new THREE.BoxGeometry(1.7, 1.7, 1.7);
+const crateMat = new THREE.MeshStandardMaterial({ color: 0xd97925, roughness: .8 });
+const crateEdge = new THREE.EdgesGeometry(crateGeo);
+const edgeMat = new THREE.LineBasicMaterial({ color: 0x5e2f08 });
+const coinGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.14, 22);
+const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd23d, roughness: .25, metalness: .8, emissive: 0x6b4e00, emissiveIntensity: .5 });
+const obstacles = [], coinsArr = [];
+function spawnRow(z) {
+  /* leave at least one clear lane: pick 1 gap column of 3 */
+  const gap = Math.floor(Math.random() * 3);
+  const lanes = [-3.1, 0, 3.1];
+  for (let c = 0; c < 3; c++) {
+    if (c === gap) continue;
+    if (Math.random() < 0.28) continue; /* extra breathing room sometimes */
+    const m = new THREE.Mesh(crateGeo, crateMat);
+    m.add(new THREE.LineSegments(crateEdge, edgeMat));
+    m.position.set(lanes[c] + (Math.random() * .5 - .25), 0.85, z);
+    m.castShadow = true;
+    scene.add(m); obstacles.push(m);
+  }
+  if (Math.random() < 0.75) {
+    const n = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) {
+      const coin = new THREE.Mesh(coinGeo, coinMat);
+      coin.rotation.x = Math.PI / 2;
+      coin.position.set(lanes[gap] + (Math.random() * .8 - .4), 0.8, z - 3 - i * 2.1);
+      scene.add(coin); coinsArr.push(coin);
+    }
+  }
+}
+
+/* ---------- game state ---------- */
+const distEl = document.getElementById('dist'), coinsEl = document.getElementById('coins');
+const startOverlay = document.getElementById('startOverlay'), endOverlay = document.getElementById('endOverlay');
+let state = 'menu'; /* menu | run | over */
+let speed = 0, dist = 0, coinCount = 0, nextRowZ = -34;
+let targetX = 0, keys = {};
+let best = 0; try { best = +localStorage.getItem('orb-rush-3d-best') || 0; } catch (e) {}
+
+function reset() {
+  for (const o of obstacles) scene.remove(o);
+  for (const c of coinsArr) scene.remove(c);
+  obstacles.length = 0; coinsArr.length = 0;
+  dist = 0; coinCount = 0; speed = 14; targetX = 0;
+  ball.position.set(0, 0.55, 0); ball.rotation.set(0, 0, 0);
+  nextRowZ = -34;
+  coinsEl.textContent = '0'; distEl.textContent = '0';
+}
+function startGame() {
+  ac(); sndClick();
+  reset();
+  startOverlay.hidden = true; endOverlay.hidden = true;
+  state = 'run';
+}
+function gameOver() {
+  state = 'over'; sndCrash();
+  const d = Math.floor(dist), total = d + coinCount * 10;
+  if (total > best) { best = total; try { localStorage.setItem('orb-rush-3d-best', best); } catch (e) {} }
+  document.getElementById('finalScore').textContent = d + 'm  ·  🪙 ' + coinCount + '  ·  SCORE ' + total;
+  document.getElementById('bestScore').textContent = 'Best score: ' + best;
+  endOverlay.hidden = false;
+}
+document.getElementById('playBtn').addEventListener('click', startGame);
+document.getElementById('againBtn').addEventListener('click', startGame);
+
+/* ---------- input ---------- */
+let dragging = false;
+function setFromClientX(cx) {
+  const t = (cx / innerWidth) * 2 - 1;         /* -1..1 across screen */
+  targetX = THREE.MathUtils.clamp(t * (HALF - .4), -HALF + .6, HALF - .6);
+}
+container.addEventListener('pointerdown', e => { dragging = true; setFromClientX(e.clientX); });
+addEventListener('pointermove', e => { if (dragging) setFromClientX(e.clientX); });
+addEventListener('pointerup', () => dragging = false);
+addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; });
+addEventListener('keyup',   e => { keys[e.key.toLowerCase()] = false; });
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* ---------- loop ---------- */
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  if (state === 'run') {
+    /* adaptive difficulty: speed grows with distance, caps late */
+    speed = Math.min(14 + dist * 0.028, 36);
+    dist += speed * dt;
+    distEl.textContent = Math.floor(dist);
+
+    if (keys['arrowleft'] || keys['a'])  targetX = Math.max(targetX - 22 * dt, -HALF + .6);
+    if (keys['arrowright'] || keys['d']) targetX = Math.min(targetX + 22 * dt, HALF - .6);
+    ball.position.x += (targetX - ball.position.x) * Math.min(1, dt * 11);
+    ball.rotation.x -= (speed * dt) / 0.55;
+    ball.rotation.z = -(targetX - ball.position.x) * 0.12;
+    ball.position.y = 0.55 + Math.abs(Math.sin(t * 9)) * 0.03;
+
+    const dz = speed * dt;
+    for (const g of segments) { g.position.z += dz; if (g.position.z - SEG_LEN / 2 > 14) g.position.z -= SEG_LEN * SEG_N; }
+    for (const p of pillars)   { p.position.z += dz; if (p.position.z > 16) { p.position.z -= 176; p.position.x = (Math.random() < .5 ? -1 : 1) * (8 + Math.random() * 5); } }
+
+    while (nextRowZ > -110) { spawnRow(nextRowZ); nextRowZ -= 13 + Math.random() * 5 - Math.min(dist * 0.004, 4); }
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      const o = obstacles[i]; o.position.z += dz;
+      if (o.position.z > 12) { scene.remove(o); obstacles.splice(i, 1); continue; }
+      if (Math.abs(o.position.z - ball.position.z) < 1.15 && Math.abs(o.position.x - ball.position.x) < 1.35) gameOver();
+    }
+    for (let i = coinsArr.length - 1; i >= 0; i--) {
+      const c = coinsArr[i]; c.position.z += dz; c.rotation.z += dt * 3.4;
+      if (c.position.z > 12) { scene.remove(c); coinsArr.splice(i, 1); continue; }
+      if (Math.abs(c.position.z - ball.position.z) < 1.0 && Math.abs(c.position.x - ball.position.x) < 1.0) {
+        scene.remove(c); coinsArr.splice(i, 1);
+        coinCount++; coinsEl.textContent = coinCount; sndCoin();
+      }
+    }
+    nextRowZ += dz;
+    camera.position.x = ball.position.x * 0.45;
+    camera.lookAt(ball.position.x * 0.7, 1, -12);
+  } else {
+    /* menu / over: gentle idle */
+    ball.rotation.y += dt * 0.8;
+    camera.position.x = Math.sin(t * 0.4) * 1.6;
+    camera.lookAt(0, 1, -12);
+    for (const c of coinsArr) c.rotation.z += dt * 2;
+  }
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+
+<script>
+  /* WAM play counters (Abacus, keyless) - fire-and-forget; the game plays
+     identically if the counter service is unreachable. Each key fires at
+     most once per page load. No visible UI. */
+  (function () {
+    var NS = "https://abacus.jasoncameron.dev/hit/wam-games/";
+    var fired = {};
+    function hit(key) {
+      if (fired[key]) return;
+      fired[key] = true;
+      try { fetch(NS + key, { mode: "no-cors", keepalive: true }).catch(function () {}); }
+      catch (e) { /* counter is optional; never break the game */ }
+    }
+    hit("orb-rush-3d-open");
+    var el = document.getElementById("playBtn");
+    if (el) el.addEventListener("click", function () { hit("orb-rush-3d-play"); });
+    var ag = document.getElementById("againBtn");
+    if (ag) ag.addEventListener("click", function () { hit("orb-rush-3d-play"); });
+    var eo = document.getElementById("endOverlay");
+    if (eo && window.MutationObserver) {
+      var obs = new MutationObserver(function () { if (!eo.hidden) hit("orb-rush-3d-finish"); });
+      obs.observe(eo, { attributes: true, attributeFilter: ["hidden"] });
+    }
+  })();
+</script>
+</body>
+</html>
