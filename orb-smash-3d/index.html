@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>💪 Orb Smash 3D</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #0a0714; }
+  body { font-family: system-ui, sans-serif; color: #eef1ff; }
+  #game { position: fixed; inset: 0; touch-action: none; }
+  canvas { display: block; }
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0; padding: 12px 16px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    pointer-events: none; z-index: 5;
+    font-weight: 700; text-shadow: 0 2px 8px rgba(0,0,0,.7);
+  }
+  #hud .big { font-size: 26px; }
+  #hud .lbl { font-size: 11px; letter-spacing: .12em; color: #aab; font-weight: 600; }
+  #hud .mid, #hud .right { text-align: center; }
+  #hud .right { text-align: right; }
+  #hud .power { color: #ff9d3d; }
+  #pop {
+    position: fixed; top: 20%; left: 0; right: 0; z-index: 6; text-align: center;
+    font-size: 32px; font-weight: 800; color: #ffd23d; pointer-events: none;
+    text-shadow: 0 2px 10px rgba(0,0,0,.85); opacity: 0; transition: opacity .18s;
+  }
+  #warn {
+    position: fixed; top: 30%; left: 0; right: 0; z-index: 6; text-align: center;
+    font-size: 21px; font-weight: 800; color: #ff5577; pointer-events: none;
+    text-shadow: 0 2px 10px rgba(0,0,0,.85); opacity: 0; transition: opacity .25s;
+  }
+  .overlay {
+    position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; padding: 24px;
+    background: rgba(8, 5, 18, .74);
+  }
+  .overlay[hidden] { display: none; }
+  .overlay h1 { font-size: 40px; margin-bottom: 6px; }
+  .overlay h2 { font-size: 32px; margin-bottom: 6px; }
+  .overlay p { color: #d8cdf5; max-width: 430px; line-height: 1.45; margin-bottom: 10px; }
+  .overlay .score { font-size: 20px; color: #ffd23d; font-weight: 700; margin-bottom: 4px; }
+  .overlay .best { font-size: 14px; color: #aab; margin-bottom: 14px; }
+  button.play {
+    pointer-events: auto; border: 0; cursor: pointer; margin-top: 10px;
+    background: #ffd23d; color: #191200; font-weight: 800; font-size: 20px;
+    padding: 14px 42px; border-radius: 999px;
+  }
+  button.play:active { transform: scale(.97); }
+  #footer {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 5; text-align: center;
+    padding: 8px 10px; font-size: 12.5px; color: #99a; pointer-events: none;
+    background: linear-gradient(transparent, rgba(0,0,0,.55));
+  }
+  #footer a { color: #ffd23d; pointer-events: auto; text-decoration: none; font-weight: 700; }
+</style>
+</head>
+<body>
+<div id="game"></div>
+
+<div id="hud">
+  <div>
+    <div class="lbl">POWER</div>
+    <div class="big power">💪 <span id="power">1</span></div>
+  </div>
+  <div class="mid">
+    <div class="lbl">DISTANCE</div>
+    <div class="big"><span id="dist">0</span>m</div>
+  </div>
+  <div class="right">
+    <div class="lbl">SCORE</div>
+    <div class="big"><span id="score">0</span></div>
+  </div>
+</div>
+<div id="pop"></div>
+<div id="warn"></div>
+
+<div class="overlay" id="startOverlay">
+  <h1>💪 ORB SMASH 3D</h1>
+  <p>Don't dodge the walls. <b>SMASH them.</b><br/>
+     Every wall shows its strength. If your 💪 POWER is equal or higher, you blast
+     through and grow stronger. Too low? You splat.</p>
+  <p>Pick your line: weak walls are safe, rich walls pay more power.<br/>
+     Grab the ✨ shards. And every 500m… a <b>MEGA WALL</b>. Be ready.</p>
+  <p>🖱️ Drag, 👆 swipe, or ◀ ▶ / A D to steer.</p>
+  <button class="play" id="playBtn">▶ PLAY</button>
+</div>
+
+<div class="overlay" id="endOverlay" hidden>
+  <h2 id="endTitle">🧱 TOO STRONG!</h2>
+  <div class="score" id="finalScore"></div>
+  <div class="best" id="bestScore"></div>
+  <button class="play" id="againBtn">↻ SMASH AGAIN</button>
+</div>
+
+<div id="footer">
+  From <a href="https://www.facebook.com/workandmoneyla" target="_blank" rel="noopener">Work &amp; Money Los Angeles</a> — real jobs &amp; money help daily
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ---------- synth sounds ---------- */
+let AC = null;
+function ac() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } if (AC && AC.state === 'suspended') AC.resume(); return AC; }
+function blip(f0, f1, dur, type, vol) {
+  const a = ac(); if (!a) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type || 'sine'; o.frequency.setValueAtTime(f0, a.currentTime);
+  o.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), a.currentTime + dur);
+  g.gain.setValueAtTime(vol || .16, a.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001, a.currentTime + dur);
+  o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + dur);
+}
+const sndShard = () => blip(1400, 2100, .08, 'sine', .12);
+const sndGrow  = () => { blip(500, 900, .12, 'triangle', .15); setTimeout(() => blip(750, 1300, .12, 'triangle', .13), 70); };
+const sndSmash = big => { blip(big ? 200 : 300, 50, big ? .3 : .2, 'square', .22); setTimeout(() => blip(900, 250, .12, 'sawtooth', .10), 25); };
+const sndWarn  = () => { blip(880, 880, .12, 'square', .12); setTimeout(() => blip(880, 880, .12, 'square', .12), 180); };
+const sndFail  = () => { blip(240, 35, .45, 'sawtooth', .25); };
+
+/* ---------- scene ---------- */
+const container = document.getElementById('game');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x120a24);
+scene.fog = new THREE.Fog(0x120a24, 30, 95);
+const camera = new THREE.PerspectiveCamera(66, innerWidth / innerHeight, 0.1, 220);
+camera.position.set(0, 5.2, 8.2);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xd8c8ff, 0x1a1030, 0.95));
+const sun = new THREE.DirectionalLight(0xfff2d8, 1.6);
+sun.position.set(6, 14, 4); sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -12; sun.shadow.camera.right = 12;
+sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -20;
+scene.add(sun);
+
+/* ---------- track ---------- */
+const TRACK_W = 10, HALF = TRACK_W / 2;
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a2140, roughness: .95 });
+const segments = [];
+const SEG_LEN = 20, SEG_N = 7;
+for (let i = 0; i < SEG_N; i++) {
+  const g = new THREE.Group();
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(TRACK_W, SEG_LEN), groundMat);
+  plane.rotation.x = -Math.PI / 2; plane.receiveShadow = true; g.add(plane);
+  const railGeo = new THREE.BoxGeometry(0.28, 0.28, SEG_LEN);
+  const railMat = new THREE.MeshStandardMaterial({ color: 0x18102e, emissive: 0xff7733, emissiveIntensity: .8 });
+  const l = new THREE.Mesh(railGeo, railMat); l.position.set(-HALF - .2, .14, 0); g.add(l);
+  const r = new THREE.Mesh(railGeo, railMat); r.position.set(HALF + .2, .14, 0); g.add(r);
+  g.position.z = -i * SEG_LEN + 10;
+  scene.add(g); segments.push(g);
+}
+const pillars = [];
+const pilGeo = new THREE.BoxGeometry(0.5, 9, 0.5);
+const pilMats = [0xff5577, 0x33ccff, 0xffcc33, 0x77ff99].map(c =>
+  new THREE.MeshStandardMaterial({ color: 0x111122, emissive: c, emissiveIntensity: 1.4 }));
+for (let i = 0; i < 16; i++) {
+  const p = new THREE.Mesh(pilGeo, pilMats[i % 4]);
+  p.position.set((i % 2 === 0 ? -1 : 1) * (8 + Math.random() * 5), 4.5, -i * 11 - Math.random() * 5);
+  scene.add(p); pillars.push(p);
+}
+
+/* ---------- ball ---------- */
+const ballMat = new THREE.MeshStandardMaterial({ color: 0xff8c2e, roughness: .3, metalness: .3, emissive: 0x712f00, emissiveIntensity: .7 });
+const ball = new THREE.Mesh(new THREE.SphereGeometry(0.55, 28, 22), ballMat);
+ball.castShadow = true; ball.position.set(0, 0.55, 0);
+scene.add(ball);
+function ballRadius() { return 0.55 * (1 + Math.min(power, 80) * 0.009); }
+
+/* ---------- labels ---------- */
+function makeLabel(main, sub, color) {
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 176;
+  const x = cv.getContext('2d');
+  x.fillStyle = 'rgba(0,0,0,0)'; x.clearRect(0, 0, 256, 176);
+  x.textAlign = 'center';
+  x.fillStyle = color || '#ffffff';
+  x.font = '900 96px system-ui, sans-serif';
+  x.shadowColor = 'rgba(0,0,0,.65)'; x.shadowBlur = 10;
+  x.fillText(main, 128, 100);
+  if (sub) { x.font = '700 40px system-ui, sans-serif'; x.fillStyle = '#ffd23d'; x.fillText(sub, 128, 156); }
+  const tex = new THREE.CanvasTexture(cv);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 1.72), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+  return m;
+}
+
+/* ---------- walls, shards, steel, frags ---------- */
+const walls = [], shards = [], frags = [];
+const wallGeo = new THREE.BoxGeometry(3.1, 2.3, 0.7);
+const megaGeo = new THREE.BoxGeometry(TRACK_W + 0.6, 3.4, 0.9);
+const steelGeo = new THREE.BoxGeometry(2.2, 2.2, 2.2);
+const steelMat = new THREE.MeshStandardMaterial({ color: 0x2b2f3a, roughness: .35, metalness: .85 });
+const shardGeo = new THREE.IcosahedronGeometry(0.34, 0);
+const shardMat = new THREE.MeshStandardMaterial({ color: 0x7dffce, emissive: 0x0d7a4a, emissiveIntensity: 1.1, roughness: .2 });
+const fragGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+function tierMat(s) {
+  if (s <= 6)  return new THREE.MeshStandardMaterial({ color: 0xc98d45, roughness: .85 });           /* wood */
+  if (s <= 14) return new THREE.MeshStandardMaterial({ color: 0xa03a30, roughness: .9 });            /* brick */
+  if (s <= 26) return new THREE.MeshStandardMaterial({ color: 0x8b8f9a, roughness: .95 });           /* concrete */
+  return new THREE.MeshStandardMaterial({ color: 0x3a4a63, roughness: .4, metalness: .6 });          /* steel-blue */
+}
+function addWall(x, z, strength, gain, mega) {
+  const mat = mega ? new THREE.MeshStandardMaterial({ color: 0x59161f, roughness: .6, emissive: 0x8c0f1d, emissiveIntensity: .55 }) : tierMat(strength);
+  const w = new THREE.Mesh(mega ? megaGeo : wallGeo, mat);
+  w.position.set(x, mega ? 1.7 : 1.15, z);
+  w.castShadow = true;
+  w.userData = { strength, gain, mega: !!mega, mat };
+  const label = mega ? makeLabel('💪 ' + strength, 'MEGA WALL', '#ffb3ba') : makeLabel('' + strength, '+' + gain + ' 💪', '#ffffff');
+  label.position.set(0, 0, (mega ? 0.46 : 0.36) + 0.02);
+  if (mega) label.scale.setScalar(1.6);
+  w.add(label);
+  scene.add(w); walls.push(w);
+  return w;
+}
+function addSteel(x, z) {
+  const s = new THREE.Mesh(steelGeo, steelMat);
+  s.position.set(x, 1.1, z); s.castShadow = true;
+  s.userData = { strength: Infinity, gain: 0, steel: true, mat: steelMat };
+  const label = makeLabel('✖', null, '#ff5577'); label.position.set(0, 0, 1.12); s.add(label);
+  scene.add(s); walls.push(s);
+}
+function addShardLine(x, z, n) {
+  for (let i = 0; i < n; i++) {
+    const s = new THREE.Mesh(shardGeo, shardMat);
+    s.position.set(x, 0.75, z - i * 2.0);
+    scene.add(s); shards.push(s);
+  }
+}
+function burst(pos, mat, n, spread) {
+  for (let i = 0; i < n; i++) {
+    const f = new THREE.Mesh(fragGeo, mat);
+    f.position.copy(pos);
+    f.userData.vel = new THREE.Vector3((Math.random() - .5) * spread, 3 + Math.random() * 6, (Math.random() - .5) * spread + 5);
+    f.userData.rot = new THREE.Vector3(Math.random() * 7, Math.random() * 7, Math.random() * 7);
+    f.userData.life = 0.9;
+    scene.add(f); frags.push(f);
+  }
+}
+
+/* ---------- state ---------- */
+const powerEl = document.getElementById('power'), distEl = document.getElementById('dist'), scoreEl = document.getElementById('score');
+const popEl = document.getElementById('pop'), warnEl = document.getElementById('warn');
+const startOverlay = document.getElementById('startOverlay'), endOverlay = document.getElementById('endOverlay');
+let state = 'menu';
+let power = 1, dist = 0, smashCount = 0, shardCount = 0, megaCount = 0;
+let speed = 0, targetX = 0, keys = {}, nextRowZ = -36, rowsSpawned = 0;
+let nextMegaAt = 500, megaReq = 10, megaWarned = false, megaWallRef = null;
+let popTimer = null;
+let best = 0; try { best = +localStorage.getItem('orb-smash-3d-best') || 0; } catch (e) {}
+function score() { return Math.floor(dist) + smashCount * 10 + shardCount * 5 + megaCount * 150; }
+function popup(txt, color) { popEl.textContent = txt; if (color) popEl.style.color = color; popEl.style.opacity = 1; clearTimeout(popTimer); popTimer = setTimeout(() => popEl.style.opacity = 0, 800); }
+function setBallScale() { const s = ballRadius() / 0.55; ball.scale.setScalar(s); }
+
+function spawnRow(z) {
+  rowsSpawned++;
+  const lanes = [-3.3, 0, 3.3];
+  const gapLane = Math.floor(Math.random() * 3);
+  /* the weak wall is always smashable right now — the game is about greed, not luck */
+  const weakS = Math.max(1, power - 2 + Math.floor(Math.random() * 3));
+  const richS = weakS + 2 + Math.floor(Math.random() * 4);
+  for (let c = 0; c < 3; c++) {
+    if (c === gapLane) continue;
+    const isRich = c === (gapLane + 1 + Math.floor(Math.random() * 2)) % 3;
+    if (isRich) addWall(lanes[c], z, richS, 3 + Math.floor(Math.random() * 2), false);
+    else addWall(lanes[c], z, weakS, 1 + Math.floor(Math.random() * 2), false);
+    if (Math.random() < 0.16) addSteel(lanes[c] + (Math.random() < .5 ? -1.7 : 1.7), z - 6);
+  }
+  addShardLine(lanes[gapLane], z + 3, 3);
+}
+function spawnMega(z) {
+  megaWallRef = addWall(0, z, megaReq, 6, true) || null;
+  megaWarned = false;
+}
+
+function reset() {
+  for (const w of walls) scene.remove(w);
+  for (const s of shards) scene.remove(s);
+  for (const f of frags) scene.remove(f);
+  walls.length = 0; shards.length = 0; frags.length = 0;
+  power = 1; dist = 0; smashCount = 0; shardCount = 0; megaCount = 0;
+  speed = 15; targetX = 0; nextRowZ = -36; rowsSpawned = 0;
+  nextMegaAt = 500; megaReq = 10; megaWallRef = null;
+  ball.position.set(0, 0.55, 0); setBallScale();
+  powerEl.textContent = '1'; distEl.textContent = '0'; scoreEl.textContent = '0';
+  warnEl.style.opacity = 0;
+}
+function startGame() {
+  ac(); blip(700, 900, .06, 'triangle', .12);
+  reset();
+  startOverlay.hidden = true; endOverlay.hidden = true;
+  state = 'run';
+}
+function gameOver(needed) {
+  state = 'over'; sndFail();
+  burst(ball.position, ballMat, 14, 9);
+  ball.visible = false;
+  const total = score();
+  if (total > best) { best = total; try { localStorage.setItem('orb-smash-3d-best', best); } catch (e) {} }
+  document.getElementById('endTitle').textContent = needed === Infinity ? '✖ SOLID STEEL!' : '🧱 TOO STRONG — NEEDED ' + needed + ', YOU HAD ' + power;
+  document.getElementById('finalScore').textContent = Math.floor(dist) + 'm  ·  💪 ' + power + '  ·  walls smashed ' + smashCount + '  ·  SCORE ' + total;
+  document.getElementById('bestScore').textContent = 'Best score: ' + best;
+  setTimeout(() => { endOverlay.hidden = false; }, 450);
+}
+document.getElementById('playBtn').addEventListener('click', startGame);
+document.getElementById('againBtn').addEventListener('click', () => { ball.visible = true; startGame(); });
+
+/* ---------- input ---------- */
+let dragging = false;
+function setFromClientX(cx) {
+  const t = (cx / innerWidth) * 2 - 1;
+  targetX = THREE.MathUtils.clamp(t * (HALF - .2), -HALF + .5, HALF - .5);
+}
+container.addEventListener('pointerdown', e => { dragging = true; setFromClientX(e.clientX); });
+addEventListener('pointermove', e => { if (dragging) setFromClientX(e.clientX); });
+addEventListener('pointerup', () => dragging = false);
+addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; });
+addEventListener('keyup',   e => { keys[e.key.toLowerCase()] = false; });
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* ---------- loop ---------- */
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  if (state === 'run') {
+    speed = Math.min(15 + dist * 0.016, 31);
+    dist += speed * dt;
+    distEl.textContent = Math.floor(dist);
+    scoreEl.textContent = score();
+
+    if (keys['arrowleft'] || keys['a'])  targetX = Math.max(targetX - 24 * dt, -HALF + .5);
+    if (keys['arrowright'] || keys['d']) targetX = Math.min(targetX + 24 * dt, HALF - .5);
+    ball.position.x += (targetX - ball.position.x) * Math.min(1, dt * 11);
+    const r = ballRadius();
+    ball.position.y = r + Math.abs(Math.sin(t * 9)) * 0.03;
+    ball.rotation.x -= (speed * dt) / r;
+    ball.rotation.z = -(targetX - ball.position.x) * 0.12;
+
+    const dz = speed * dt;
+    for (const g of segments) { g.position.z += dz; if (g.position.z - SEG_LEN / 2 > 14) g.position.z -= SEG_LEN * SEG_N; }
+    for (const p of pillars)   { p.position.z += dz; if (p.position.z > 16) { p.position.z -= 176; p.position.x = (Math.random() < .5 ? -1 : 1) * (8 + Math.random() * 5); } }
+
+    /* mega wall scheduling: spawn it 110 units ahead of its distance mark */
+    if (!megaWallRef && dist + 110 >= nextMegaAt && dist < nextMegaAt) {
+      spawnMega(-(nextMegaAt - dist));
+    }
+    if (megaWallRef && !megaWarned && megaWallRef.position.z > -70) {
+      megaWarned = true;
+      warnEl.textContent = '⚠️ MEGA WALL AHEAD — NEED 💪 ' + megaReq + ' (YOU: ' + power + ')';
+      warnEl.style.opacity = 1; sndWarn();
+      setTimeout(() => warnEl.style.opacity = 0, 2600);
+    }
+
+    while (nextRowZ > -110) {
+      if (!(megaWallRef && Math.abs(nextRowZ - megaWallRef.position.z) < 12)) spawnRow(nextRowZ);
+      nextRowZ -= 16 + Math.random() * 4;
+    }
+    nextRowZ += dz;
+
+    for (let i = walls.length - 1; i >= 0; i--) {
+      const w = walls[i]; w.position.z += dz;
+      if (w.position.z > 14) { if (w === megaWallRef) megaWallRef = null; scene.remove(w); walls.splice(i, 1); continue; }
+      const halfW = w.userData.mega ? HALF + 0.3 : (w.userData.steel ? 1.1 : 1.55);
+      if (Math.abs(w.position.z - ball.position.z) < 0.5 + r && Math.abs(w.position.x - ball.position.x) < halfW + r * 0.8) {
+        if (power >= w.userData.strength) {
+          burst(w.position, w.userData.mat, w.userData.mega ? 26 : 12, w.userData.mega ? 11 : 8);
+          scene.remove(w); walls.splice(i, 1);
+          if (w.userData.mega) {
+            megaCount++; power += w.userData.gain; megaWallRef = null;
+            nextMegaAt += 500; megaReq += 11;
+            popup('💥 MEGA WALL DOWN! +6 💪', '#7dffce'); sndSmash(true);
+          } else {
+            smashCount++; power += w.userData.gain;
+            popup('SMASH! +' + w.userData.gain + ' 💪'); sndSmash(false); sndGrow();
+          }
+          powerEl.textContent = power; setBallScale();
+        } else {
+          gameOver(w.userData.strength);
+        }
+      }
+    }
+    for (let i = shards.length - 1; i >= 0; i--) {
+      const s = shards[i]; s.position.z += dz; s.rotation.y += dt * 3;
+      if (s.position.z > 12) { scene.remove(s); shards.splice(i, 1); continue; }
+      if (Math.abs(s.position.z - ball.position.z) < 1.0 && Math.abs(s.position.x - ball.position.x) < 1.0) {
+        scene.remove(s); shards.splice(i, 1);
+        shardCount++; power++; powerEl.textContent = power; setBallScale(); sndShard();
+      }
+    }
+    camera.position.x = ball.position.x * 0.45;
+    camera.lookAt(ball.position.x * 0.7, 1, -12);
+  } else {
+    ball.rotation.y += dt * 0.8;
+    camera.position.x = Math.sin(t * 0.4) * 1.6;
+    camera.lookAt(0, 1, -12);
+    for (const s of shards) s.rotation.y += dt * 2;
+  }
+
+  for (let i = frags.length - 1; i >= 0; i--) {
+    const f = frags[i];
+    f.userData.life -= dt;
+    if (f.userData.life <= 0) { scene.remove(f); frags.splice(i, 1); continue; }
+    f.userData.vel.y -= 22 * dt;
+    f.position.addScaledVector(f.userData.vel, dt);
+    if (state === 'run') f.position.z += speed * dt * 0.4;
+    f.rotation.x += f.userData.rot.x * dt; f.rotation.y += f.userData.rot.y * dt;
+    if (f.position.y < 0.2) { f.position.y = 0.2; f.userData.vel.y *= -0.4; }
+  }
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+
+<script>
+  /* WAM play counters (Abacus, keyless) - fire-and-forget; the game plays
+     identically if the counter service is unreachable. Each key fires at
+     most once per page load. No visible UI. */
+  (function () {
+    var NS = "https://abacus.jasoncameron.dev/hit/wam-games/";
+    var fired = {};
+    function hit(key) {
+      if (fired[key]) return;
+      fired[key] = true;
+      try { fetch(NS + key, { mode: "no-cors", keepalive: true }).catch(function () {}); }
+      catch (e) { /* counter is optional; never break the game */ }
+    }
+    hit("orb-smash-3d-open");
+    var el = document.getElementById("playBtn");
+    if (el) el.addEventListener("click", function () { hit("orb-smash-3d-play"); });
+    var ag = document.getElementById("againBtn");
+    if (ag) ag.addEventListener("click", function () { hit("orb-smash-3d-play"); });
+    var eo = document.getElementById("endOverlay");
+    if (eo && window.MutationObserver) {
+      var obs = new MutationObserver(function () { if (!eo.hidden) hit("orb-smash-3d-finish"); });
+      obs.observe(eo, { attributes: true, attributeFilter: ["hidden"] });
+    }
+  })();
+</script>
+</body>
+</html>
