@@ -19,6 +19,17 @@
   #hud .big { font-size: 26px; }
   #hud .lbl { font-size: 11px; letter-spacing: .12em; color: #aab; font-weight: 600; }
   #hud .right { text-align: right; }
+  #hud .mid { text-align: center; }
+  #pop {
+    position: fixed; top: 22%; left: 0; right: 0; z-index: 6; text-align: center;
+    font-size: 30px; font-weight: 800; color: #ffd23d; pointer-events: none;
+    text-shadow: 0 2px 10px rgba(0,0,0,.8); opacity: 0; transition: opacity .18s;
+  }
+  #boostbar {
+    position: fixed; top: 84px; left: 50%; transform: translateX(-50%); z-index: 5;
+    font-weight: 800; color: #33ccff; letter-spacing: .15em; font-size: 15px;
+    text-shadow: 0 2px 8px rgba(0,0,0,.8); opacity: 0; transition: opacity .15s; pointer-events: none;
+  }
   .overlay {
     position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column;
     align-items: center; justify-content: center; text-align: center; padding: 24px;
@@ -52,16 +63,23 @@
     <div class="lbl">DISTANCE</div>
     <div class="big"><span id="dist">0</span>m</div>
   </div>
+  <div class="mid">
+    <div class="lbl">SCORE</div>
+    <div class="big"><span id="score">0</span></div>
+  </div>
   <div class="right">
     <div class="lbl">COINS</div>
     <div class="big">🪙 <span id="coins">0</span></div>
   </div>
 </div>
+<div id="pop"></div>
+<div id="boostbar">⚡ BOOST ⚡</div>
 
 <div class="overlay" id="startOverlay">
   <h1>🔮 ORB RUSH 3D</h1>
   <p>Your orb is rolling downhill and it will <b>not</b> slow down.<br/>
-     Steer to dodge the crates. Grab the coins. How far can you get?</p>
+     Dodge the crates — or hit a <b>⚡ boost pad</b> and smash through them.<br/>
+     Ride the <b>ramps</b> to fly over them. Near misses pay bonus points.</p>
   <p>🖱️ Drag, 👆 swipe, or use ◀ ▶ / A D to steer.</p>
   <button class="play" id="playBtn">▶ PLAY</button>
 </div>
@@ -99,6 +117,10 @@ function blip(f0, f1, dur, type, vol) {
 const sndCoin  = () => { blip(1250, 1900, .09, 'sine', .14); setTimeout(() => blip(1900, 2400, .08, 'sine', .10), 55); };
 const sndCrash = () => { blip(160, 40, .35, 'sawtooth', .22); };
 const sndClick = () => blip(700, 900, .06, 'triangle', .12);
+const sndWhoosh = () => blip(300, 1400, .28, 'sine', .13);
+const sndLand  = () => blip(220, 90, .10, 'triangle', .14);
+const sndSmash = () => { blip(300, 60, .18, 'square', .20); setTimeout(() => blip(900, 300, .10, 'sawtooth', .10), 30); };
+const sndNear  = () => blip(1500, 700, .12, 'sine', .09);
 
 /* ---------- scene ---------- */
 const container = document.getElementById('game');
@@ -187,6 +209,8 @@ function spawnRow(z) {
     m.add(new THREE.LineSegments(crateEdge, edgeMat));
     m.position.set(lanes[c] + (Math.random() * .5 - .25), 0.85, z);
     m.castShadow = true;
+    m.userData.passed = false;
+    if (dist > 250 && Math.random() < 0.45) { m.userData.slidePhase = Math.random() * 6.28; m.userData.baseX = m.position.x; }
     scene.add(m); obstacles.push(m);
   }
   if (Math.random() < 0.75) {
@@ -200,22 +224,75 @@ function spawnRow(z) {
   }
 }
 
+/* ---------- ramps, boost pads, smash fragments ---------- */
+const ramps = [], pads = [], frags = [];
+const rampShape = new THREE.Shape();
+rampShape.moveTo(-1.5, 0); rampShape.lineTo(1.5, 0); rampShape.lineTo(1.5, 1.15); rampShape.lineTo(-1.5, 0);
+const rampGeo = new THREE.ExtrudeGeometry(rampShape, { depth: 2.2, bevelEnabled: false });
+const rampMat = new THREE.MeshStandardMaterial({ color: 0x38406e, roughness: .6, emissive: 0xffd23d, emissiveIntensity: .18 });
+const padGeo = new THREE.BoxGeometry(2.3, 0.1, 2.8);
+const padMat = new THREE.MeshStandardMaterial({ color: 0x0b2a3a, emissive: 0x33ccff, emissiveIntensity: 1.6 });
+const fragGeo = new THREE.BoxGeometry(0.42, 0.42, 0.42);
+function spawnFeature(z) {
+  const laneX = [-3.1, 0, 3.1][Math.floor(Math.random() * 3)];
+  if (Math.random() < 0.5) {
+    const r = new THREE.Mesh(rampGeo, rampMat);
+    r.rotation.y = Math.PI / 2; /* slope rises toward -z, the way the ball travels */
+    r.position.set(laneX - 1.1, 0, z);
+    r.castShadow = true;
+    scene.add(r); ramps.push(r);
+  } else {
+    const p = new THREE.Mesh(padGeo, padMat);
+    p.position.set(laneX, 0.06, z);
+    scene.add(p); pads.push(p);
+  }
+}
+function smashCrate(o) {
+  for (let i = 0; i < 7; i++) {
+    const f = new THREE.Mesh(fragGeo, crateMat);
+    f.position.copy(o.position);
+    f.userData.vel = new THREE.Vector3((Math.random() - .5) * 7, 3 + Math.random() * 5, (Math.random() - .5) * 7 + 4);
+    f.userData.rot = new THREE.Vector3(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    f.userData.life = 0.8;
+    scene.add(f); frags.push(f);
+  }
+  scene.remove(o);
+}
+
 /* ---------- game state ---------- */
 const distEl = document.getElementById('dist'), coinsEl = document.getElementById('coins');
+const scoreEl = document.getElementById('score'), popEl = document.getElementById('pop');
+const boostEl = document.getElementById('boostbar');
 const startOverlay = document.getElementById('startOverlay'), endOverlay = document.getElementById('endOverlay');
 let state = 'menu'; /* menu | run | over */
-let speed = 0, dist = 0, coinCount = 0, nextRowZ = -34;
+let speed = 0, dist = 0, coinCount = 0, bonus = 0, nextRowZ = -34, rowCount = 0;
 let targetX = 0, keys = {};
+let vy = 0, airborne = false, boostT = 0;
+let popTimer = null;
 let best = 0; try { best = +localStorage.getItem('orb-rush-3d-best') || 0; } catch (e) {}
+
+function popup(txt) {
+  popEl.textContent = txt; popEl.style.opacity = 1;
+  clearTimeout(popTimer);
+  popTimer = setTimeout(() => popEl.style.opacity = 0, 750);
+}
+function score() { return Math.floor(dist) + coinCount * 10 + bonus; }
 
 function reset() {
   for (const o of obstacles) scene.remove(o);
   for (const c of coinsArr) scene.remove(c);
-  obstacles.length = 0; coinsArr.length = 0;
-  dist = 0; coinCount = 0; speed = 14; targetX = 0;
+  for (const r of ramps) scene.remove(r);
+  for (const p of pads) scene.remove(p);
+  for (const f of frags) scene.remove(f);
+  obstacles.length = 0; coinsArr.length = 0; ramps.length = 0; pads.length = 0; frags.length = 0;
+  dist = 0; coinCount = 0; bonus = 0; speed = 14; targetX = 0; rowCount = 0;
+  vy = 0; airborne = false; boostT = 0;
   ball.position.set(0, 0.55, 0); ball.rotation.set(0, 0, 0);
+  ball.material.emissiveIntensity = .6;
+  camera.fov = 66; camera.updateProjectionMatrix();
+  boostEl.style.opacity = 0;
   nextRowZ = -34;
-  coinsEl.textContent = '0'; distEl.textContent = '0';
+  coinsEl.textContent = '0'; distEl.textContent = '0'; scoreEl.textContent = '0';
 }
 function startGame() {
   ac(); sndClick();
@@ -225,9 +302,9 @@ function startGame() {
 }
 function gameOver() {
   state = 'over'; sndCrash();
-  const d = Math.floor(dist), total = d + coinCount * 10;
+  const d = Math.floor(dist), total = score();
   if (total > best) { best = total; try { localStorage.setItem('orb-rush-3d-best', best); } catch (e) {} }
-  document.getElementById('finalScore').textContent = d + 'm  ·  🪙 ' + coinCount + '  ·  SCORE ' + total;
+  document.getElementById('finalScore').textContent = d + 'm  ·  🪙 ' + coinCount + '  ·  bonus ' + bonus + '  ·  SCORE ' + total;
   document.getElementById('bestScore').textContent = 'Best score: ' + best;
   endOverlay.hidden = false;
 }
@@ -260,25 +337,77 @@ function animate() {
   if (state === 'run') {
     /* adaptive difficulty: speed grows with distance, caps late */
     speed = Math.min(14 + dist * 0.028, 36);
-    dist += speed * dt;
+    if (boostT > 0) boostT -= dt;
+    const effSpeed = speed * (boostT > 0 ? 1.4 : 1);
+    dist += effSpeed * dt;
     distEl.textContent = Math.floor(dist);
+    scoreEl.textContent = score();
+    boostEl.style.opacity = boostT > 0 ? 1 : 0;
+    const wantFov = boostT > 0 ? 76 : 66;
+    if (Math.abs(camera.fov - wantFov) > .2) { camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 6); camera.updateProjectionMatrix(); }
+    ball.material.emissiveIntensity = boostT > 0 ? 1.5 : .6;
 
     if (keys['arrowleft'] || keys['a'])  targetX = Math.max(targetX - 22 * dt, -HALF + .6);
     if (keys['arrowright'] || keys['d']) targetX = Math.min(targetX + 22 * dt, HALF - .6);
     ball.position.x += (targetX - ball.position.x) * Math.min(1, dt * 11);
-    ball.rotation.x -= (speed * dt) / 0.55;
+    ball.rotation.x -= (effSpeed * dt) / 0.55;
     ball.rotation.z = -(targetX - ball.position.x) * 0.12;
-    ball.position.y = 0.55 + Math.abs(Math.sin(t * 9)) * 0.03;
+    if (airborne) {
+      vy -= 34 * dt;
+      ball.position.y += vy * dt;
+      if (ball.position.y <= 0.55) { ball.position.y = 0.55; airborne = false; vy = 0; sndLand(); }
+    } else {
+      ball.position.y = 0.55 + Math.abs(Math.sin(t * 9)) * 0.03;
+    }
 
-    const dz = speed * dt;
+    const dz = effSpeed * dt;
     for (const g of segments) { g.position.z += dz; if (g.position.z - SEG_LEN / 2 > 14) g.position.z -= SEG_LEN * SEG_N; }
     for (const p of pillars)   { p.position.z += dz; if (p.position.z > 16) { p.position.z -= 176; p.position.x = (Math.random() < .5 ? -1 : 1) * (8 + Math.random() * 5); } }
 
-    while (nextRowZ > -110) { spawnRow(nextRowZ); nextRowZ -= 13 + Math.random() * 5 - Math.min(dist * 0.004, 4); }
+    while (nextRowZ > -110) {
+      spawnRow(nextRowZ);
+      rowCount++;
+      if (rowCount % 4 === 0) spawnFeature(nextRowZ - 7);
+      nextRowZ -= 13 + Math.random() * 5 - Math.min(dist * 0.004, 4);
+    }
     for (let i = obstacles.length - 1; i >= 0; i--) {
       const o = obstacles[i]; o.position.z += dz;
+      if (o.userData.slidePhase !== undefined) o.position.x = o.userData.baseX + Math.sin(t * 1.7 + o.userData.slidePhase) * 1.15;
       if (o.position.z > 12) { scene.remove(o); obstacles.splice(i, 1); continue; }
-      if (Math.abs(o.position.z - ball.position.z) < 1.15 && Math.abs(o.position.x - ball.position.x) < 1.35) gameOver();
+      const latGap = Math.abs(o.position.x - ball.position.x);
+      if (!o.userData.passed && o.position.z > ball.position.z + 1.3) {
+        o.userData.passed = true;
+        if (latGap >= 1.35 && latGap < 2.7 && !airborne) { bonus += 5; popup('CLOSE! +5'); sndNear(); }
+      }
+      if (Math.abs(o.position.z - ball.position.z) < 1.15 && latGap < 1.35 && ball.position.y < 1.6) {
+        if (boostT > 0) { smashCrate(o); obstacles.splice(i, 1); bonus += 15; popup('SMASH! +15'); sndSmash(); }
+        else gameOver();
+      }
+    }
+    for (let i = ramps.length - 1; i >= 0; i--) {
+      const r = ramps[i]; r.position.z += dz;
+      if (r.position.z > 14) { scene.remove(r); ramps.splice(i, 1); continue; }
+      if (!airborne && Math.abs(r.position.z - ball.position.z) < 1.2 && Math.abs((r.position.x + 1.1) - ball.position.x) < 1.35) {
+        airborne = true; vy = 13.5; sndWhoosh(); popup('AIRBORNE! 🪽');
+      }
+    }
+    for (let i = pads.length - 1; i >= 0; i--) {
+      const p = pads[i]; p.position.z += dz;
+      if (p.position.z > 14) { scene.remove(p); pads.splice(i, 1); continue; }
+      if (!airborne && Math.abs(p.position.z - ball.position.z) < 1.5 && Math.abs(p.position.x - ball.position.x) < 1.3) {
+        scene.remove(p); pads.splice(i, 1);
+        boostT = 2.6; popup('⚡ BOOST!'); sndWhoosh();
+      }
+    }
+    for (let i = frags.length - 1; i >= 0; i--) {
+      const f = frags[i];
+      f.userData.life -= dt;
+      if (f.userData.life <= 0) { scene.remove(f); frags.splice(i, 1); continue; }
+      f.userData.vel.y -= 22 * dt;
+      f.position.addScaledVector(f.userData.vel, dt);
+      f.position.z += dz;
+      f.rotation.x += f.userData.rot.x * dt; f.rotation.y += f.userData.rot.y * dt;
+      if (f.position.y < 0.2) { f.position.y = 0.2; f.userData.vel.y *= -0.4; }
     }
     for (let i = coinsArr.length - 1; i >= 0; i--) {
       const c = coinsArr[i]; c.position.z += dz; c.rotation.z += dt * 3.4;
