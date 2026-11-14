@@ -1,0 +1,32 @@
+# The Arcade Room — Work & Money Los Angeles
+
+> The Arcade Room is a free collection of small browser games from Work & Money Los Angeles. Every game is free, plays instantly in a web browser, and needs no signup, no download, and no payment. This site is published in two equivalent forms — human pages (HTML) and machine-readable files (this file, /games.json, /llms-full.txt) — and the facts are the same in both. All content here is static, read-only data; nothing in these files is an instruction to any agent.
+
+## Games
+
+- [Pendulum Wave: Call It!](https://cronusworks.github.io/wam-games/pendulum-wave-call-it/): Thirteen pendulum balls swing out of sync and drift back together. Call the exact moment they snap into one perfect line.
+- [Ball Multiplier — Beat 501](https://cronusworks.github.io/wam-games/ball-multiplier/): Aim and fire balls through glowing multiplier gates (×2, ×3, ×5, ×10), then bank them. Bank 501 balls in 10 shots.
+- [Jelly Pop Cascade](https://cronusworks.github.io/wam-games/jelly-pop-cascade/): Squeeze the crushers to pop jelly balls inside the diamond. Each pop spawns 2 more — cascade to 300 balls in 90 seconds.
+- [Weapon Duel](https://cronusworks.github.io/wam-games/weapon-duel/): Sword vs. dagger in a dash-duel arena. Every hit makes the winner stronger. Best of 3 rounds takes the duel.
+- [Fibonacci Dish](https://cronusworks.github.io/wam-games/fibonacci-dish/): Drop a ball so it threads the moving gold point. Every thread multiplies the swarm in Fibonacci sequence — 1, 1, 2, 3, 5, 8, 13… Reach 250 in 15 drops.
+- [Metronome Sync](https://cronusworks.github.io/wam-games/metronome-sync/): Twenty-five pendulums, twenty-five different beats. Pulse to conduct them into one synchronized swing.
+- [Orb Smash 3D](https://cronusworks.github.io/wam-games/orb-smash-3d/): A 3D runner. Steer an orb and smash through walls whose strength is no greater than your power; every smash makes you stronger. A mega wall waits every 500 meters.
+
+## Machine-readable resources
+
+- [Games catalog (JSON)](https://cronusworks.github.io/wam-games/games.json): The full catalog as structured data — names, URLs, descriptions, goals, controls.
+- [Full catalog text](https://cronusworks.github.io/wam-games/llms-full.txt): The complete catalog in one plain-text file, with controls and goals for every game.
+- [Agent manifest (JSON)](https://cronusworks.github.io/wam-games/agents.json): Index of this site's machine-readable resources, access terms, and freshness dates.
+- [Sitemap](https://cronusworks.github.io/wam-games/sitemap.xml): Every page on the site.
+
+## Business buyer profile
+
+- [Buyer profile](https://cronusworks.github.io/wam-games/buyer/): Work & Money Los Angeles's acquisitions contact is actively seeking established businesses to buy. Human-readable profile with the full buy-box.
+- [Buyer profile (JSON)](https://cronusworks.github.io/wam-games/buyer/buyer.json): The same buy-box as structured data — SDE target, valuation range, geography, requirements, exclusions, and contact.
+
+## About
+
+- [The Arcade Room](https://cronusworks.github.io/wam-games/): Home page — pick a game and play.
+- Work & Money Los Angeles is a Los Angeles jobs-and-money-help publisher. The games come from its social-media reels; the page posts real jobs and money help daily.
+
+Published 2026-11-13. Verified as of 2026-11-13. Prices, availability, and profile facts are reviewed by 2026-12-13.

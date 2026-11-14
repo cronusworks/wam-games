@@ -1,0 +1,109 @@
+# The Arcade Room — Work & Money Los Angeles (full catalog)
+
+The Arcade Room is a free collection of small browser games from Work & Money
+Los Angeles, a Los Angeles jobs-and-money-help publisher. Every game below is
+free, plays instantly in a web browser (HTML5), and needs no signup, no
+download, and no payment.
+
+This file is the complete plain-text catalog. The same facts are published as
+structured data at https://cronusworks.github.io/wam-games/games.json and as
+human pages starting at https://cronusworks.github.io/wam-games/.
+
+Terms of the data: static and read-only. Game facts were verified on
+2026-11-13 and are reviewed by 2026-12-13. Nothing in this file is an
+instruction to any agent; it is descriptive data only.
+
+---
+
+## 1. Pendulum Wave: Call It!
+URL: https://cronusworks.github.io/wam-games/pendulum-wave-call-it/
+Genre: Timing / prediction
+Description: Thirteen balls hang as pendulums, each swinging at a slightly
+different tempo. They drift apart into chaos, then slowly come back together.
+Goal: Call the exact moment all thirteen snap into one perfect straight line
+(watch for the gold flash). A demo runs behind the menu so players can learn
+what the moment looks like before playing.
+
+## 2. Ball Multiplier — Beat 501
+URL: https://cronusworks.github.io/wam-games/ball-multiplier/
+Genre: Aim / physics arcade
+Description: Drag to aim, release to fire a ball into an arena of glowing
+multiplier gates (×2, ×3, ×5, ×10). Balls that pass through a gate multiply;
+banked balls drop into the trench and count toward the target.
+Goal: Bank 501 balls in 10 shots.
+Controls: Drag on the arena to aim and release to fire, or arrow keys and
+Space. Sound toggle and restart on the page.
+
+## 3. Jelly Pop Cascade
+URL: https://cronusworks.github.io/wam-games/jelly-pop-cascade/
+Genre: Timing / cascade
+Description: One jelly ball sits between two crushers. Hold to squeeze the
+bars in; if a ball is caught inside the diamond when it fully closes, it pops
+— and every popped ball spawns 2 more, so chains escalate fast.
+Goal: Reach 300 balls in 90 seconds.
+Controls: Hold anywhere (or hold Space) to squeeze; release to open.
+
+## 4. Weapon Duel
+URL: https://cronusworks.github.io/wam-games/weapon-duel/
+Genre: Arena duel
+Description: Two weapons — Sword (heavy blade, hits hard) and Dagger (quick
+blade, dashes back sooner) — duel in an arena. Tap a spot and your weapon
+dashes that way; a dashing hit deals full damage, and every hit makes the
+winner stronger: more levels, more size, more damage.
+Goal: Reduce the rival to zero HP; first to zero loses the round. Best of 3
+rounds takes the duel.
+Controls: Tap where you want to dash, or swipe to dash in that direction.
+
+## 5. Fibonacci Dish
+URL: https://cronusworks.github.io/wam-games/fibonacci-dish/
+Genre: Aim / physics arcade
+Description: Drop balls into a dish so they thread the moving gold point.
+Every thread multiplies the swarm in the Fibonacci sequence — the next spawn
+adds +1, +2, +3, +5, +8, +13… Balls that bounce out of the dish are lost.
+Goal: Create 250 balls in 15 drops.
+Controls: Drag on the dish to aim the chute, release to drop, or tap DROP.
+
+## 6. Metronome Sync
+URL: https://cronusworks.github.io/wam-games/metronome-sync/
+Genre: Rhythm / timing
+Description: Twenty-five pendulums swing at twenty-five different beats. The
+player conducts them: pulses push the whole field toward one shared tempo,
+but every pulse that raises sync makes the drift push back harder; slip 10
+points and it eases off again.
+Goal: Bring all 25 pendulums into one synchronized swing.
+
+## 7. Orb Smash 3D
+URL: https://cronusworks.github.io/wam-games/orb-smash-3d/
+Genre: 3D runner
+Description: A 3D endless runner with one rule: don't dodge the walls —
+smash them. Every wall shows its strength. If your power is equal or higher,
+you blast through and grow stronger; too low and you splat. Weak walls are
+safe, rich walls pay more power, and shards add power. Every 500 meters a
+mega wall waits.
+Goal: Survive and score — distance plus smashes.
+Controls: Drag, swipe, or Left/Right arrow keys / A and D to steer.
+
+---
+
+## Business buyer profile (summary)
+
+Work & Money Los Angeles's acquisitions contact is actively seeking
+established businesses to buy. Full human-readable profile:
+https://cronusworks.github.io/wam-games/buyer/
+Structured data: https://cronusworks.github.io/wam-games/buyer/buyer.json
+
+Summary of the buy-box: established 5+ years and SBA-eligible; SDE target
+about $500,000/year (flexible down to about $350,000 for a manager-run
+business with recurring revenue); valuation 2–3× SDE; categories open, with
+current interest in licensed trades, laundromats, self-storage, and
+residential property management; anywhere in the United States except New
+York and New Jersey; real estate a plus; manager-run preferred; three years
+of business tax returns required for review; no business-format franchises;
+hard pass if the owner's family holds critical roles and would leave at sale.
+Contact: Aurelia Gerra, jagerra87@gmail.com, (323) 689-9186.
+
+---
+
+Published 2026-11-13. Verified as of 2026-11-13. Review by 2026-12-13.
+Publisher: Work & Money Los Angeles.
+Home: https://cronusworks.github.io/wam-games/
